@@ -101,7 +101,8 @@ int main (int argc, char **argv)
 						set_buf(part_buf, pbi, '\0');
 						pbi ^= pbi;
 					}
-#if 1
+#if 1 // this is for debugging, I see parts of future cmdline from struct command_parts
+      // write 0 instead 1 near #if for turn it off
 					write_copa(first);
 					write(1, "\n", 1);
 #endif
