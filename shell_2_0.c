@@ -1,7 +1,8 @@
 #include <stdint.h>
-#include "shell_2_0.h"
-#include "modules/input_formatting.h"
-#include "modules/process_control.h"
+#include "modules/headers/shell_2_0.h"
+#include "modules/headers/input_formatting.h"
+#include "modules/headers/process_control.h"
+#include "modules/headers/help_functions.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

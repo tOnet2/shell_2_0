@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include "../shell_2_0.h"
+#include "headers/shell_2_0.h"
 
 typedef struct command_parts copa;
 

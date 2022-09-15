@@ -1,6 +1,6 @@
 #include <stdint.h>
-#include "../shell_2_0.h"
-#include "input_formatting.h"
+#include "headers/shell_2_0.h"
+#include "headers/input_formatting.h"
 #include <stdlib.h>
 
 typedef struct command_parts copa;
