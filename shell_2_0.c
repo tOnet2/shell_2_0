@@ -14,12 +14,19 @@
 
 typedef struct command_parts copa;
 
-enum { r_b_size = 1024, w_b_size = 4096 };
+enum { r_b_size = 1024, p_b_size = 4096 };
 
 static const uint8_t w8[1] = ">"; // w8 = wait.  Invation for some comand.
+static const uint8_t odd_quotes_error[] = "Icorrect input of quotes\n";
+
+const uint8_t conveyor_part[] = "\" | \"";
+const uint8_t background_part[] = "\" & \"";
+const uint8_t output_to_start_part[] = "\" > \"";
+const uint8_t output_to_end_part[] = "\" >> \"";
+const uint8_t input_from[] = "\" < \"";
 
 static uint8_t read_buf[r_b_size];
-static uint8_t word_buf[w_b_size];
+static uint8_t part_buf[p_b_size];
 
 int main (int argc, char **argv)
 {
@@ -40,15 +47,19 @@ int main (int argc, char **argv)
 		perror("Set termios new attributes");
 		exit(1);
 	}
-	int32_t read_return;
-	uint32_t rbi, wbi, S;
+	int32_t read_return, rbi, pbi, S;
+	uint8_t shield_trigger, quote_trigger;
+	copa *first, *last;
+	first = last = NULL;
 	/*
+	 * copa *first and *last are pointer for struct command_parts (there
+	 * 					are parts for future cmdline)
 	 * read_return for amount control of input characters
 	 * rbi - read buffer index for handing input.
-	 * wbi - word buffer index for control word buffer.
+	 * pbi - part buffer index for control part buffer.
 	 * S - for exit of program (S need 'S' for this)
 	 */
-	wbi ^= wbi; // "^=" like "= 0". But operations with bites faster:)
+	shield_trigger = quote_trigger = pbi ^= pbi; // "^=" like "= 0". But operations with bites faster:)
 	write(1, w8, sizeof(w8));
 	while ((read_return = read(0, read_buf, r_b_size))) {
 		if(read_return == -1){
@@ -64,22 +75,79 @@ int main (int argc, char **argv)
 			 * 0x10 = '\n'	(New line)
 			 * 0x18 = '^R'	(Restore last word)
 			 * 0x20 = ' '	(Space)
+			 * 0x22 = '"'	(Symbol for using spaces and tabs in part and other syms)
 			 * 0x23 = '^W'	(Delete last word)
-			 * 0x44 = 'D' 	(<-)
-			 * 0x43 = 'C' 	(->)
-			 * 0x41 = 'A' 	(^)
-			 * 0x42 = 'B' 	(v)
+			 * 0x26 = '&'	(For background process)
+			 * 0x28 0x29 =	'(' ')'
+			 * 0x3c = '<'	(Redirect input)
+			 * 0x3e = '>'	(Redirect output)
+			 * 0x44 = 'D' 	(for <-)
+			 * 0x43 = 'C' 	(for ->)
+			 * 0x41 = 'A' 	(for ^)
+			 * 0x42 = 'B' 	(for v)
+			 * 0x5c = '\'	(Shielding)
+			 * 0x7c = '|'	(Conveyor symbol)
+			 *
 			 */
 			switch (read_buf[rbi]) {
-				case 0x10:
+				case 0xA:
 					write(1, "\n", 1);
+					if (quote_trigger) {
+						write(2, odd_quotes_error, sizeof(odd_quotes_error));
+						quote_trigger ^= quote_trigger;
+					}
+					if (pbi > 0) {
+						create_part_copa(part_buf, pbi, &first, &last);
+						set_buf(part_buf, pbi, '\0');
+						pbi ^= pbi;
+					}
+#if 1
+					write_copa(first);
+					write(1, "\n", 1);
+#endif
 					write(1, w8, sizeof(w8));
+					free_copa(first);
+					first = last = NULL;
+					shield_trigger ^= shield_trigger;
 					break;
+				case 0x5c:
+					if (shield_trigger) {
+						shield_trigger ^= shield_trigger;
+						goto dflt;
+					} else {
+						write(1, "\\", 1);
+						shield_trigger |= 1;
+					}
+					break;
+				case 0x22:
+					if (shield_trigger) {
+						shield_trigger ^= shield_trigger;
+						goto dflt;
+					}
+					write(1, "\"", 1);
+					if (quote_trigger)
+						quote_trigger ^= quote_trigger;
+					else
+						quote_trigger |= 1;
+					break;
+				case 0x9:
 				case 0x20:
-				// im here, I have make a parts of command :)
-				default:
-					word_buf[wbi++] = read_buf[rbi];
-					write(1, (const char*)word_buf, 1);
+					if (quote_trigger)
+						goto dflt;
+					else {
+						create_part_copa(part_buf, pbi, &first, &last);
+						set_buf(part_buf, pbi, '\0');
+						pbi ^= pbi;
+						write(1, " ", 1);
+					}
+					break;
+				case 'S':
+					S = 'S';
+					break;
+dflt:				default:
+					part_buf[pbi] = read_buf[rbi];
+					write(1, (const uint8_t*)&(part_buf[pbi]), 1);
+					pbi++;
 			}
 		}
 		clean_read_buf(read_buf, read_return);
