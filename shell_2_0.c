@@ -153,6 +153,7 @@ dflt:				default:
 		clean_read_buf(read_buf, read_return);
 		if(S == 'S') break;
 	}
+	free_copa(first);
 	write(1, "\n", 1);
 	tcsetattr(0, TCSADRAIN, &termios_old_p);
 	//Restore old line desciple settings
