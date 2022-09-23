@@ -106,8 +106,8 @@ int main (int argc, char **argv)
 					}
 					if (input_error_value == 2 || bracket_error == 1) {
 						write(2, input_error, sizeof(input_error));
-						bracket_error = 0;
-						input_error_value = 0;
+						bracket_error ^= bracket_error;
+						input_error_value ^= input_error_value;
 						goto break_execute;
 					}
 					if (pbi > 0) {
@@ -125,7 +125,7 @@ int main (int argc, char **argv)
 break_execute:				write(1, w8, sizeof(w8));
 					free_copa(first);
 					first = last = NULL;
-					shield_trigger = 0;
+					shield_trigger ^= shield_trigger;
 					break;
 				case 0x5c:
 					if (shield_trigger) {
@@ -137,18 +137,18 @@ break_execute:				write(1, w8, sizeof(w8));
 					break;
 				case 0x22:
 					if (shield_trigger) {
-						shield_trigger = 0;
+						shield_trigger ^= shield_trigger;
 						goto dflt;
 					}
 					write(1, "\"", 1);
 					if (quote_trigger)
-						quote_trigger = 0;
+						quote_trigger ^= quote_trigger;
 					else
 						quote_trigger |= 1;
 					break;
 				case 0x26:
 					if (shield_trigger || quote_trigger) {
-						shield_trigger = 0;
+						shield_trigger ^= shield_trigger;
 						goto dflt;
 					}
 					write(1, "&", 1);
@@ -166,7 +166,6 @@ break_execute:				write(1, w8, sizeof(w8));
 						input_error_value = 2;
 					else
 						create_part_copa(background_part, sizeof(background_part), &first, &last);
-					last_part_comparison = 0;
 					break;
 				case 0x28:
 					if (shield_trigger || quote_trigger) {
@@ -196,7 +195,7 @@ break_execute:				write(1, w8, sizeof(w8));
 					break;
 				case 0x7c:
 					if (shield_trigger || quote_trigger) {
-						shield_trigger = 0;
+						shield_trigger ^= shield_trigger;
 						goto dflt;
 					}
 					write(1, "|", 1);
