@@ -29,24 +29,3 @@ uint32_t size_of_copa_part (uint8_t *part)
 	return size;
 }
 
-void change_last_copa_part (uint8_t *part, const uint8_t *new_part, int32_t s_new_part)
-{
-	free(part);
-	part = malloc(s_new_part);
-	for (; s_new_part; s_new_part--, part++, new_part++)
-		*part = *new_part;
-}
-
-int32_t comp_last_copa_part (uint8_t *part, const uint8_t *buf, int32_t s_buf)
-{
-	int i;
-	for (i = 0; s_buf; s_buf--, i++)
-		if (part[i] != buf[i]) break;
-	if (s_buf == 0)
-		return 1;
-	if (part[i] == 0x26 || part[i] == 0x3b\
-			|| part[i] == 0x3c || part[i] == 0x3e\
-			|| part[i] == 0x7c)
-		return 2;
-	return 0;
-}

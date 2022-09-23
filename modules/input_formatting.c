@@ -46,4 +46,32 @@ void free_copa (copa *t)
 	}
 }
 
+void change_last_copa_part (uint8_t *part, const uint8_t *new_part, int32_t s_new_part)
+{
+	free(part);
+	part = malloc(s_new_part);
+	for (; s_new_part; s_new_part--, part++, new_part++)
+		*part = *new_part;
+}
 
+int32_t comp_last_copa_part_for_background_conveyor_train (const copa *t, const uint8_t *buf, int32_t s_buf)
+{
+	if (!t) return 2;
+	int i;
+	for (i = 0; s_buf; s_buf--, i++)
+		if (t->part[i] != buf[i]) break;
+	if (s_buf == 0)
+		return 1;
+	if (t->part[i] == 0x26 || t->part[i] == 0x3b\
+			|| t->part[i] == 0x3c || t->part[i] == 0x3e\
+			|| t->part[i] == 0x7c)
+		return 2;
+	return 0;
+}
+
+int32_t check_read_buf_control_symbol(const uint8_t *read_buf, int32_t read_buf_size, uint8_t symbol)
+{
+	for (; read_buf_size; read_buf_size--, read_buf++)
+		if (*read_buf == symbol) return 1;
+	return 0;
+}

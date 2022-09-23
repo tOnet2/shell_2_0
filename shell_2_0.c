@@ -28,6 +28,8 @@ const uint8_t and_part[] = "\" && \"";
 const uint8_t output_to_start_part[] = "\" > \"";
 const uint8_t output_to_end_part[] = "\" >> \"";
 const uint8_t input_from_part[] = "\" < \"";
+const uint8_t bracket_left_part[] = "\" ( \"";
+const uint8_t bracket_right_part[] = "\" ) \"";
 
 static uint8_t read_buf[r_b_size];
 static uint8_t part_buf[p_b_size];
@@ -51,19 +53,19 @@ int main (int argc, char **argv)
 		perror("Set termios new attributes");
 		exit(1);
 	}
-	int32_t read_return, rbi, pbi, S, last_part_comparison, input_error_value;
-	uint8_t shield_trigger, quote_trigger;
+	int32_t read_return, rbi, pbi, S, last_part_comparison;
+	int32_t input_error_value, bracket_count;
+	uint8_t shield_trigger, quote_trigger, bracket_error;
 	copa *first, *last;
 	first = last = NULL;
 	/*
-	 * copa *first and *last are pointer for struct command_parts (there
-	 * 					are parts for future cmdline)
+	 * copa *first and *last are pointer for struct command_parts (there are parts for future cmdline)
 	 * read_return for amount control of input characters
 	 * rbi - read buffer index for handing input.
 	 * pbi - part buffer index for control part buffer.
 	 * S - for exit of program (S need 'S' for this)
 	 */
-	shield_trigger = quote_trigger = pbi ^= pbi; // "^=" like "= 0". But operations with bites faster:)
+	bracket_error = bracket_count = shield_trigger = quote_trigger = pbi ^= pbi;
 	write(1, w8, sizeof(w8));
 	while ((read_return = read(0, read_buf, r_b_size))) {
 		if(read_return == -1){
@@ -79,7 +81,8 @@ int main (int argc, char **argv)
 			 * 0x10 = '\n'	(New line)
 			 * 0x18 = '^R'	(Restore last word)
 			 * 0x20 = ' '	(Space)
-			 * 0x22 = '"'	(Symbol for using spaces and tabs in part and other syms)
+			 * 0x22 = '"'	(Symbol for using spaces and tabs
+			 * 		 in part and other syms)
 			 * 0x23 = '^W'	(Delete last word)
 			 * 0x26 = '&'	(For background process)
 			 * 0x28 0x29 =	'(' ')'
@@ -101,72 +104,110 @@ int main (int argc, char **argv)
 						write(2, odd_quotes_error, sizeof(odd_quotes_error));
 						quote_trigger ^= quote_trigger;
 					}
-					if (input_error_value == 2){
+					if (input_error_value == 2 || bracket_error == 1) {
 						write(2, input_error, sizeof(input_error));
-						input_error_value ^= input_error_value;
+						bracket_error = 0;
+						input_error_value = 0;
 						goto break_execute;
 					}
 					if (pbi > 0) {
-						create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
+						create_part_copa(\
+							(const uint8_t*)part_buf,\
+						       	pbi, &first, &last);
 						set_buf(part_buf, pbi, '\0');
 						pbi ^= pbi;
 					}
-#if 1 // this is for debugging, I see parts of future cmdline from struct command_parts
-      // write 0 instead 1 near #if for turn it off
+#if 1 // this is for debugging, I see parts of future cmdline from struct 
+      // command_parts write 0 instead 1 near #if for turn it off
 					write_copa(first);
 					write(1, "\n", 1);
 #endif
 break_execute:				write(1, w8, sizeof(w8));
 					free_copa(first);
 					first = last = NULL;
-					shield_trigger ^= shield_trigger;
+					shield_trigger = 0;
 					break;
 				case 0x5c:
 					if (shield_trigger) {
 						shield_trigger ^= shield_trigger;
 						goto dflt;
-					} else {
-						write(1, "\\", 1);
-						shield_trigger |= 1;
 					}
+					write(1, "\\", 1);
+					shield_trigger |= 1;
 					break;
 				case 0x22:
 					if (shield_trigger) {
-						shield_trigger ^= shield_trigger;
+						shield_trigger = 0;
 						goto dflt;
 					}
 					write(1, "\"", 1);
 					if (quote_trigger)
-						quote_trigger ^= quote_trigger;
+						quote_trigger = 0;
 					else
 						quote_trigger |= 1;
 					break;
 				case 0x26:
 					if (shield_trigger || quote_trigger) {
-						shield_trigger ^= shield_trigger;
+						shield_trigger = 0;
 						goto dflt;
 					}
 					write(1, "&", 1);
-					last_part_comparison = comp_last_copa_part(last->part\
-							, background_part, sizeof(background_part));
+					if (pbi > 0) {
+						create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
+						set_buf(part_buf, pbi, '\0');
+						pbi ^= pbi;
+						create_part_copa(background_part, sizeof(background_part), &first, &last);
+						break;
+					}
+					last_part_comparison = comp_last_copa_part_for_background_conveyor_train((const copa*)last, background_part, sizeof(background_part));
 					if (last_part_comparison == 1)
 						change_last_copa_part(last->part, and_part, sizeof(and_part));
 					else if (last_part_comparison == 2)
 						input_error_value = 2;
 					else
 						create_part_copa(background_part, sizeof(background_part), &first, &last);
-					last_part_comparison ^= last_part_comparison;
+					last_part_comparison = 0;
 					break;
 				case 0x28:
-					break; // '(' im here
-				case 0x7c:
 					if (shield_trigger || quote_trigger) {
 						shield_trigger ^= shield_trigger;
 						goto dflt;
 					}
+					write(1, "(", 1);
+					break;
+				case 0x3b:
+					if (shield_trigger || quote_trigger) {
+						shield_trigger ^= shield_trigger;
+						goto dflt;
+					}
+					write(1, ";", 1);
+					if (pbi > 0) {
+						create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
+						set_buf(part_buf, pbi, '\0');
+						pbi ^= pbi;
+						create_part_copa(train_part, sizeof(train_part), &first, &last);
+						break;
+					}
+					last_part_comparison = comp_last_copa_part_for_background_conveyor_train((const copa*)last, train_part, sizeof(train_part));
+					if (last_part_comparison > 0)
+						input_error_value = 2;
+					else
+						create_part_copa(train_part, sizeof(train_part), &first, &last);
+					break;
+				case 0x7c:
+					if (shield_trigger || quote_trigger) {
+						shield_trigger = 0;
+						goto dflt;
+					}
 					write(1, "|", 1);
-					last_part_comparison = comp_last_copa_part(last->part\
-							, conveyor_part, sizeof(conveyor_part));
+					if (pbi > 0) {
+						create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
+						set_buf(part_buf, pbi, '\0');
+						pbi ^= pbi;
+						create_part_copa(conveyor_part, sizeof(conveyor_part), &first, &last);
+						break;
+					}
+					last_part_comparison = comp_last_copa_part_for_background_conveyor_train((const copa*)last, conveyor_part, sizeof(conveyor_part));
 					if (last_part_comparison == 1)
 						change_last_copa_part(last->part, or_part, sizeof(or_part));
 					else if (last_part_comparison == 2)
@@ -176,6 +217,8 @@ break_execute:				write(1, w8, sizeof(w8));
 					break;
 				case 0x9:
 				case 0x20:
+					if (shield_trigger)
+						shield_trigger ^= shield_trigger;
 					if (quote_trigger)
 						goto dflt;
 					else {
@@ -184,7 +227,10 @@ break_execute:				write(1, w8, sizeof(w8));
 							set_buf(part_buf, pbi, '\0');
 							pbi ^= pbi;
 						}
-						write(1, " ", 1);
+						if (read_buf[rbi] == 0x9)
+							write(1, "	", 1);
+						else if (read_buf[rbi] == 0x20)
+							write(1, " ", 1);
 					}
 					break;
 				case 'S':
