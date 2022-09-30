@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include "headers/shell_2_0.h"
 #include "headers/help_functions.h"
+#include "headers/input_formatting.h"
 
 typedef struct command_parts copa;
 
@@ -20,12 +21,3 @@ void write_copa (copa *t)
 		t = t->next;
 	}
 }
-
-uint32_t size_of_copa_part (uint8_t *part)
-{
-	uint32_t size = 0;
-	for(; *part; part++)
-		size++;
-	return size;
-}
-

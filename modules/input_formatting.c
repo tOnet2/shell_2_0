@@ -17,6 +17,14 @@ void set_buf (uint8_t *buf, int32_t size, uint8_t c)
 		*buf = c;
 }
 
+uint32_t size_of_copa_part (uint8_t *part)
+{
+	uint32_t size = 0;
+	for(; *part; part++)
+		size++;
+	return size;
+}
+
 void create_part_copa (const uint8_t *buf, int32_t size, copa **first, copa **last)
 {
 	copa *tmp = malloc(sizeof(*tmp));
