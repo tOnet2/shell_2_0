@@ -5,6 +5,17 @@
 
 typedef struct command_parts copa;
 
+extern uint8_t conveyor_part[];
+extern uint8_t train_part[];
+extern uint8_t or_part[];
+extern uint8_t background_part[];
+extern uint8_t and_part[];
+extern uint8_t output_to_start_part[];
+extern uint8_t output_to_end_part[];
+extern uint8_t input_from_part[];
+extern uint8_t bracket_left_part[];
+extern uint8_t bracket_right_part[];
+
 void clean_read_buf (uint8_t *buf, int32_t size)
 {
 	for (; size; size--, buf++)
@@ -17,19 +28,33 @@ void set_buf (uint8_t *buf, int32_t size, uint8_t c)
 		*buf = c;
 }
 
-uint32_t size_of_copa_part (uint8_t *part)
+uint32_t size_of_copa_part (uint8_t *part) // without '\0' symbol
 {
 	uint32_t size = 0;
-	for(; *part; part++)
-		size++;
+	for(; *part; part++, size++);
 	return size;
+}
+
+void create_part_control (uint8_t *buf, copa **first, copa **last)
+{
+	copa *tmp = malloc(sizeof(*tmp));
+	tmp->part = buf;
+	tmp->next = NULL;
+	if (*last) {
+		(*last)->next = tmp;
+		tmp->prev = *last;
+		*last = tmp;
+	} else {
+		tmp->prev = NULL;
+		*first = *last = tmp;
+	}
+
 }
 
 void create_part_copa (const uint8_t *buf, int32_t size, copa **first, copa **last)
 {
 	copa *tmp = malloc(sizeof(*tmp));
 	tmp->part = malloc(size + 1);
-//	set_buf(tmp->part, size--, '\0');
 	tmp->part[size--] = '\0';
 	tmp->next = NULL;
 	for (; size >= 0; size--)
@@ -44,42 +69,42 @@ void create_part_copa (const uint8_t *buf, int32_t size, copa **first, copa **la
 	}
 }
 
+int32_t comp_last_part_for_background (const copa *last)
+{
+	if (!last || (last->part >= conveyor_part && last->part <= or_part)\
+		|| (last->part >= and_part && last->part <= bracket_left_part)) return 2;
+	if (last->part == background_part) return 1;
+	return 0;
+}
+
+int32_t comp_last_part_for_train (const copa *last)
+{
+	if (!last || (last->part >= conveyor_part && last->part <= or_part)\
+		|| (last->part >= and_part && last->part <= bracket_left_part)) return 1;
+	return 0;
+}
+
 void free_copa (copa *t)
 {
 	while (t) {
 		copa *tmp = t;
 		t = t->next;
-		free(tmp->part);
+		if (tmp->part > bracket_right_part || tmp->part < conveyor_part)
+			free(tmp->part);
 		free(tmp);
 	}
 }
 
-void change_last_copa_part (uint8_t *part, const uint8_t *new_part, int32_t s_new_part)
+void change_last_copa_part_control (copa *last, uint8_t *control)
 {
-	free(part);
-	part = malloc(s_new_part);
-	for (; s_new_part; s_new_part--, part++, new_part++)
-		*part = *new_part;
+	last->part = control;
 }
 
-int32_t comp_last_copa_part_for_background_conveyor_train (const copa *t, const uint8_t *buf, int32_t s_buf)
+int32_t comp_str1_with_str2 (const uint8_t *str1, const uint8_t *str2)
 {
-	if (!t) return 2;
-	int i;
-	for (i = 0; s_buf; s_buf--, i++)
-		if (t->part[i] != buf[i]) break;
-	if (s_buf == 0)
+	for (; *str1 && *str2; str1++, str2++)
+		if (*str1 != *str2) return 0;
+	if (!*str1 && !*str2)
 		return 1;
-	if (t->part[i] == 0x26 || t->part[i] == 0x3b\
-			|| t->part[i] == 0x3c || t->part[i] == 0x3e\
-			|| t->part[i] == 0x7c)
-		return 2;
-	return 0;
-}
-
-int32_t check_read_buf_control_symbol(const uint8_t *read_buf, int32_t read_buf_size, uint8_t symbol)
-{
-	for (; read_buf_size; read_buf_size--, read_buf++)
-		if (*read_buf == symbol) return 1;
 	return 0;
 }
