@@ -80,25 +80,25 @@ int main (int argc, char **argv)
 		}
 		for (rbi ^= rbi; read_buf[rbi]; rbi++) {
 			/*
-			 * 0x8  = '\b'	(Backspace)
+			 * 0x8  = '\b'	(Backspace)------------------------
 			 * 0x1b = '^['	(Esc)
 			 * 0x5b = '['	(After Esc for some keys)
 			 * 0x9  = '\t'	(Tabulation)
 			 * 0x10 = '\n'	(New line)
-			 * 0x18 = '^R'	(Restore last word)
+			 * 0x18 = '^R'	(Restore last word)----------------
 			 * 0x20 = ' '	(Space)
 			 * 0x22 = '"'	(Symbol for using spaces and tabs
 			 * 		 in part and other syms)
-			 * 0x23 = '^W'	(Delete last word)
+			 * 0x23 = '^W'	(Delete last word)-----------------
 			 * 0x26 = '&'	(For background process)
-			 * 0x28 0x29 =	'(' ')'
+			 * 0x28 0x29 =	'(' ')'----------------------------
 			 * 0x3b = ';'	(For traing of process)
-			 * 0x3c = '<'	(Redirect input)
-			 * 0x3e = '>'	(Redirect output)
-			 * 0x44 = 'D' 	(for <-)
-			 * 0x43 = 'C' 	(for ->)
-			 * 0x41 = 'A' 	(for ^)
-			 * 0x42 = 'B' 	(for v)
+			 * 0x3c = '<'	(Redirect input)-------------------
+			 * 0x3e = '>'	(Redirect output)------------------
+			 * 0x44 = 'D' 	(for <-)---------------------------
+			 * 0x43 = 'C' 	(for ->)---------------------------
+			 * 0x41 = 'A' 	(for ^)?????
+			 * 0x42 = 'B' 	(for v)?????
 			 * 0x5c = '\'	(Shielding)
 			 * 0x7c = '|'	(Conveyor symbol)
 			 *
@@ -164,8 +164,10 @@ break_execute:				write(1, w8, sizeof(w8));
 						input_error_trigger = 1;
 					else if (copa_last_comp_value == 1)
 						last->part = and_part;
-					else
+					else {
 						create_part_control(background_part, &first, &last);
+						space_trigger ^= space_trigger;
+					}
 					break;
 				case 0x28: // '('
 					if (shield_trigger || quote_trigger) {
@@ -173,6 +175,7 @@ break_execute:				write(1, w8, sizeof(w8));
 						goto dflt;
 					}
 					write(1, "(", 1);
+					// im here
 					break;
 				case 0x3b: // ';'
 					if (shield_trigger || quote_trigger) {
@@ -204,7 +207,17 @@ break_execute:				write(1, w8, sizeof(w8));
 						set_buf(part_buf, pbi, '\0');
 						pbi ^= pbi;
 						create_part_control(conveyor_part, &first, &last);
+						space_trigger ^= space_trigger;
 						break;
+					}
+					copa_last_comp_value = comp_last_part_for_conveyor((const copa*)last);
+					if (copa_last_comp_value == 2 || (copa_last_comp_value == 1 && space_trigger))
+						input_error_trigger = 1;
+					else if (copa_last_comp_value == 1)
+						last->part = or_part;
+					else {
+						create_part_control(conveyor_part, &first, &last);
+						space_trigger ^= space_trigger;
 					}
 					break;
 				case 0x9: //    '	'

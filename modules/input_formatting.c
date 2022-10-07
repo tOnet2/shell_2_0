@@ -84,6 +84,14 @@ int32_t comp_last_part_for_train (const copa *last)
 	return 0;
 }
 
+int32_t comp_last_part_for_conveyor (const copa *last)
+{
+	if (!last || (last->part >= train_part && last->part <= or_part)\
+		|| (last->part >= and_part && last->part <= bracket_left_part)) return 2;
+	if (last->part == conveyor_part) return 1;
+	return 0;
+}
+
 void free_copa (copa *t)
 {
 	while (t) {
