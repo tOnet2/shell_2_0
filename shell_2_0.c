@@ -26,16 +26,16 @@ enum {
 static const uint8_t w8[w8_size] = ">"; // w8 = wait.  Invation for some comand.
 static const uint8_t input_error[] = "Incorrect input of control symbols\n";
 
-uint8_t conveyor_part[part_size_five + 1] = "\" | \"";
-uint8_t train_part[part_size_five + 1] = "\" ; \"";
-uint8_t or_part[part_size_six + 1] = "\" || \"";
-uint8_t background_part[part_size_five + 1] = "\" & \"";
-uint8_t and_part[part_size_six + 1] = "\" && \"";
-uint8_t output_to_start_part[part_size_five + 1] = "\" > \"";
-uint8_t output_to_end_part[part_size_six + 1] = "\" >> \"";
-uint8_t input_from_part[part_size_five + 1] = "\" < \"";
-uint8_t bracket_left_part[part_size_five + 1] = "\" ( \"";
-uint8_t bracket_right_part[part_size_five + 1] = "\" ) \"";
+uint8_t conveyor_part[part_size_five + 1] = "\" | \"";		/* DONT MOVE THEM */
+uint8_t train_part[part_size_five + 1] = "\" ; \"";		/* DONT MOVE THEM */
+uint8_t or_part[part_size_six + 1] = "\" || \"";		/* DONT MOVE THEM */
+uint8_t background_part[part_size_five + 1] = "\" & \"";	/* DONT MOVE THEM */
+uint8_t and_part[part_size_six + 1] = "\" && \"";		/* DONT MOVE THEM */
+uint8_t output_to_start_part[part_size_five + 1] = "\" > \"";	/* DONT MOVE THEM */
+uint8_t output_to_end_part[part_size_six + 1] = "\" >> \"";	/* DONT MOVE THEM */
+uint8_t input_from_part[part_size_five + 1] = "\" < \"";	/* DONT MOVE THEM */
+uint8_t bracket_left_part[part_size_five + 1] = "\" ( \"";	/* DONT MOVE THEM */
+uint8_t bracket_right_part[part_size_five + 1] = "\" ) \"";	/* DONT MOVE THEM */
 
 static uint8_t read_buf[r_b_size];
 static uint8_t part_buf[p_b_size];
@@ -61,7 +61,7 @@ int main (int argc, char **argv)
 	}
 	int32_t read_return, rbi, pbi, S;
 	int32_t copa_last_comp_value;
-	uint8_t shield_trigger, quote_trigger, input_error_trigger, space_trigger;
+	uint8_t shield_trigger, quote_trigger, input_error_trigger, space_trigger, bracket_trigger;
 	copa *first, *last;
 	first = last = NULL;
 	/*
@@ -71,7 +71,7 @@ int main (int argc, char **argv)
 	 * pbi - part buffer index for control part buffer.
 	 * S - for exit of program (S need 'S' for this)
 	 */
-	space_trigger = copa_last_comp_value = input_error_trigger = shield_trigger = quote_trigger = pbi ^= pbi;
+	bracket_trigger = space_trigger = copa_last_comp_value = input_error_trigger = shield_trigger = quote_trigger = pbi ^= pbi;
 	write(1, w8, w8_size);
 	while ((read_return = read(0, read_buf, r_b_size))) {
 		if(read_return == -1){
@@ -91,10 +91,10 @@ int main (int argc, char **argv)
 			 * 		 in part and other syms)
 			 * 0x23 = '^W'	(Delete last word)-----------------
 			 * 0x26 = '&'	(For background process)
-			 * 0x28 0x29 =	'(' ')'----------------------------
+			 * 0x28 0x29 =	'(' ')
 			 * 0x3b = ';'	(For traing of process)
-			 * 0x3c = '<'	(Redirect input)-------------------
-			 * 0x3e = '>'	(Redirect output)------------------
+			 * 0x3c = '<'	(Redirect input)
+			 * 0x3e = '>'	(Redirect output)
 			 * 0x44 = 'D' 	(for <-)---------------------------
 			 * 0x43 = 'C' 	(for ->)---------------------------
 			 * 0x41 = 'A' 	(for ^)?????
@@ -106,15 +106,17 @@ int main (int argc, char **argv)
 			switch (read_buf[rbi]) {
 				case 0xA:
 					write(1, "\n", 1);
-					if (quote_trigger || input_error_trigger) {
-						write(2, input_error, input_error_size);
-						input_error_trigger = quote_trigger ^= quote_trigger;
-						goto break_execute;
-					}
 					if (pbi > 0) {
 						create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
 						set_buf(part_buf, pbi, '\0');
 						pbi ^= pbi;
+					}
+					if (quote_trigger || input_error_trigger || bracket_trigger\
+						|| (last && ((last->part >= conveyor_part && last->part <= or_part)\
+						|| (last->part >= and_part && last->part <= input_from_part)))) {
+						write(2, input_error, input_error_size);
+						bracket_trigger = input_error_trigger = quote_trigger ^= quote_trigger;
+						goto break_execute;
 					}
 #if 1 // this is for debugging, I see parts of future cmdline from struct 
       // command_parts write 0 instead 1 near #if for turn it off
@@ -175,7 +177,33 @@ break_execute:				write(1, w8, sizeof(w8));
 						goto dflt;
 					}
 					write(1, "(", 1);
-					// im here
+					bracket_trigger++;
+					copa_last_comp_value = comp_last_part_for_bracket_left ((const copa*)last);
+					if (copa_last_comp_value == 1 || pbi > 0)
+						input_error_trigger = 1;
+					else
+						create_part_control(bracket_left_part, &first, &last);
+					break;
+				case 0x29: // ')'
+					if (shield_trigger || quote_trigger) {
+						shield_trigger ^= shield_trigger;
+						goto dflt;
+					}
+					write(1, ")", 1);
+					if (pbi > 0) {
+						create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
+						set_buf(part_buf, pbi, '\0');
+						pbi ^= pbi;
+						bracket_trigger--;
+						create_part_control(bracket_right_part, &first, &last);
+						break;
+					}
+					bracket_trigger--;
+					copa_last_comp_value = comp_last_part_for_bracket_right ((const copa*)last);
+					if (copa_last_comp_value == 1)
+						input_error_trigger = 1;
+					else
+						create_part_control(bracket_right_part, &first, &last);
 					break;
 				case 0x3b: // ';'
 					if (shield_trigger || quote_trigger) {
@@ -195,6 +223,49 @@ break_execute:				write(1, w8, sizeof(w8));
 						input_error_trigger = 1;
 					else
 						create_part_control(train_part, &first, &last);
+					break;
+				case 0x3c: // '<'
+					if (shield_trigger || quote_trigger) {
+						shield_trigger ^= shield_trigger;
+						goto dflt;
+					}
+					write(1, "<", 1);
+					if (pbi > 0) {
+						create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
+						set_buf(part_buf, pbi, '\0');
+						pbi ^= pbi;
+						create_part_control(input_from_part, &first, &last);
+						break;
+					}
+					copa_last_comp_value = comp_last_part_for_input_from((const copa*)last);
+					if (copa_last_comp_value == 1)
+						input_error_trigger = 1;
+					else
+						create_part_control(input_from_part, &first, &last);
+					break;
+				case 0x3e: // '>'
+					if (shield_trigger || quote_trigger) {
+						shield_trigger ^= shield_trigger;
+						goto dflt;
+					}
+					write(1, ">", 1);
+					if (pbi > 0) {
+						create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
+						set_buf(part_buf, pbi, '\0');
+						pbi ^= pbi;
+						create_part_control(output_to_start_part, &first, &last);
+						space_trigger ^= space_trigger;
+						break;
+					}
+					copa_last_comp_value = comp_last_part_for_output_to_start((const copa*)last);
+					if (copa_last_comp_value == 2 || (copa_last_comp_value == 1 && space_trigger))
+						input_error_trigger = 1;
+					else if (copa_last_comp_value == 1)
+						last->part = output_to_end_part;
+					else {
+						create_part_control(output_to_start_part, &first, &last);
+						space_trigger ^= space_trigger;
+					}
 					break;
 				case 0x7c: // '|'
 					if (shield_trigger || quote_trigger) {

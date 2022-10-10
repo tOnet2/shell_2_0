@@ -92,6 +92,33 @@ int32_t comp_last_part_for_conveyor (const copa *last)
 	return 0;
 }
 
+int32_t comp_last_part_for_bracket_left (const copa *last)
+{
+	if (!last || last->part == conveyor_part || last->part == train_part\
+		|| last->part == and_part || last->part == bracket_left_part) return 0;
+	return 1;
+}
+
+int32_t comp_last_part_for_bracket_right (const copa *last)
+{
+	if (!last || (last->part >= conveyor_part && last->part <= bracket_right_part)) return 1;
+	return 0;
+}
+
+int32_t comp_last_part_for_input_from (const copa *last)
+{
+	if (!last || (last->part >= conveyor_part && last->part <= bracket_left_part)) return 1;
+	return 0;
+}
+
+int32_t comp_last_part_for_output_to_start (const copa *last)
+{
+	if (!last || (last->part >= conveyor_part && last->part <= and_part)\
+		|| (last->part >= output_to_end_part && last->part <= bracket_left_part)) return 2;
+	if (last->part == output_to_start_part) return 1;
+	return 0;
+}
+
 void free_copa (copa *t)
 {
 	while (t) {
@@ -101,11 +128,6 @@ void free_copa (copa *t)
 			free(tmp->part);
 		free(tmp);
 	}
-}
-
-void change_last_copa_part_control (copa *last, uint8_t *control)
-{
-	last->part = control;
 }
 
 int32_t comp_str1_with_str2 (const uint8_t *str1, const uint8_t *str2)
