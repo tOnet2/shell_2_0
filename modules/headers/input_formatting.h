@@ -12,9 +12,10 @@ int32_t comp_last_part_for_bracket_left (const copa *last);
 int32_t comp_last_part_for_bracket_right (const copa *last);
 int32_t comp_last_part_for_input_from (const copa *last);
 int32_t comp_last_part_for_output_to_start (const copa *last);
+void fill_space_buffer (uint8_t *buf, int32_t length);
 void free_copa (copa *t);
 void change_last_copa_part_control (copa *last, uint8_t *control);
-uint32_t size_of_copa_part (uint8_t *part); // without '\0' symbol
+uint32_t size_of_copa_part (const uint8_t *part); // without '\0' symbol
 int32_t comp_str1_with_str2 (const uint8_t *str1, const uint8_t *str2);
 
 #endif

@@ -28,7 +28,7 @@ void set_buf (uint8_t *buf, int32_t size, uint8_t c)
 		*buf = c;
 }
 
-uint32_t size_of_copa_part (uint8_t *part) // without '\0' symbol
+uint32_t size_of_copa_part (const uint8_t *part) // without '\0' symbol
 {
 	uint32_t size = 0;
 	for(; *part; part++, size++);
@@ -117,6 +117,13 @@ int32_t comp_last_part_for_output_to_start (const copa *last)
 		|| (last->part >= output_to_end_part && last->part <= bracket_left_part)) return 2;
 	if (last->part == output_to_start_part) return 1;
 	return 0;
+}
+
+void fill_space_buffer (uint8_t *buf, int32_t length)
+{
+	buf[length--] = '\0';
+	for(; length >= 0; length--)
+		buf[length] = 0X20;
 }
 
 void free_copa (copa *t)

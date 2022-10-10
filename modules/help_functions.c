@@ -14,7 +14,7 @@ void write_copa (copa *t)
 	const uint8_t e[] = "']";
 	uint32_t part_size;
 	while (t) {
-		part_size = size_of_copa_part(t->part);
+		part_size = size_of_copa_part((const uint8_t*)t->part);
 		write(1, s, sizeof(s));
 		write(1, t->part, part_size);
 		write(1, e, sizeof(e));

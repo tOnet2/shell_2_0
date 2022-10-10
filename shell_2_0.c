@@ -14,7 +14,8 @@
 
 typedef struct command_parts copa;
 
-enum { 
+enum {
+	s_b_size = 512,
 	r_b_size = 1024,
 	p_b_size = 4096,
 	part_size_five = 5,
@@ -39,6 +40,7 @@ uint8_t bracket_right_part[part_size_five + 1] = "\" ) \"";	/* DONT MOVE THEM */
 
 static uint8_t read_buf[r_b_size];
 static uint8_t part_buf[p_b_size];
+static uint8_t space_buf[s_b_size];
 
 int main (int argc, char **argv)
 {
@@ -61,9 +63,9 @@ int main (int argc, char **argv)
 	}
 	int32_t read_return, rbi, pbi, S;
 	int32_t copa_last_comp_value;
-	uint8_t shield_trigger, quote_trigger, input_error_trigger, space_trigger, bracket_trigger;
-	copa *first, *last;
-	first = last = NULL;
+	uint8_t shield_trigger, quote_trigger, input_error_trigger, space_count, bracket_trigger;
+	copa *first, *last, *tmp;
+	tmp = first = last = NULL;
 	/*
 	 * copa *first and *last are pointer for struct command_parts (there are parts for future cmdline)
 	 * read_return for amount control of input characters
@@ -71,7 +73,7 @@ int main (int argc, char **argv)
 	 * pbi - part buffer index for control part buffer.
 	 * S - for exit of program (S need 'S' for this)
 	 */
-	bracket_trigger = space_trigger = copa_last_comp_value = input_error_trigger = shield_trigger = quote_trigger = pbi ^= pbi;
+	bracket_trigger = space_count = copa_last_comp_value = input_error_trigger = shield_trigger = quote_trigger = pbi ^= pbi;
 	write(1, w8, w8_size);
 	while ((read_return = read(0, read_buf, r_b_size))) {
 		if(read_return == -1){
@@ -97,11 +99,11 @@ int main (int argc, char **argv)
 			 * 0x3e = '>'	(Redirect output)
 			 * 0x44 = 'D' 	(for <-)---------------------------
 			 * 0x43 = 'C' 	(for ->)---------------------------
-			 * 0x41 = 'A' 	(for ^)?????
-			 * 0x42 = 'B' 	(for v)?????
+			 * 0x41 = 'A' 	(for ^)----------------------------
+			 * 0x42 = 'B' 	(for v)----------------------------
 			 * 0x5c = '\'	(Shielding)
 			 * 0x7c = '|'	(Conveyor symbol)
-			 *
+			 * 0x7f = DEL	(Delete character under cursor)----
 			 */
 			switch (read_buf[rbi]) {
 				case 0xA:
@@ -126,7 +128,33 @@ int main (int argc, char **argv)
 break_execute:				write(1, w8, sizeof(w8));
 					free_copa(first);
 					first = last = NULL;
-					space_trigger = shield_trigger ^= shield_trigger;
+					space_count = shield_trigger ^= shield_trigger;
+					break;
+				case 0x8:
+					if (space_count) {
+						write(1, "\b", 1);
+						space_count--;
+						break;
+					}
+					if (last) {
+						if (last->part >= conveyor_part && last->part <= bracket_right_part) {
+							tmp = last->prev;
+							free(last);
+							last = tmp;
+							tmp = tmp->next = NULL;
+						} else {
+							int part_size = size_of_copa_part((const uint8_t*)last->part);
+							// im here!
+							break;
+						}
+					}
+					if (!last && !pbi)
+						break;
+					write(1, "\b \b", 3);
+					if (pbi > 0) {
+						pbi--;
+						part_buf[pbi] = '\0';
+					}
 					break;
 				case 0x5c: // '\'
 					if (shield_trigger) {
@@ -158,17 +186,24 @@ break_execute:				write(1, w8, sizeof(w8));
 						set_buf(part_buf, pbi, '\0');
 						pbi ^= pbi;
 						create_part_control(background_part, &first, &last);
-						space_trigger ^= space_trigger;
+						space_count ^= space_count;
 						break;
 					}
 					copa_last_comp_value = comp_last_part_for_background((const copa*)last);
-					if (copa_last_comp_value == 2 || (copa_last_comp_value == 1 && space_trigger))
+					if (copa_last_comp_value == 2)
 						input_error_trigger = 1;
-					else if (copa_last_comp_value == 1)
+					else if (copa_last_comp_value == 1) {
+						if (space_count) {
+							fill_space_buffer(space_buf, space_count);
+							create_part_copa((const uint8_t*)space_buf, space_count, &first, &last);
+							create_part_control(background_part, &first, &last);
+							space_count ^= space_count;
+							break;
+						}
 						last->part = and_part;
-					else {
+					} else {
 						create_part_control(background_part, &first, &last);
-						space_trigger ^= space_trigger;
+						space_count ^= space_count;
 					}
 					break;
 				case 0x28: // '('
@@ -254,17 +289,17 @@ break_execute:				write(1, w8, sizeof(w8));
 						set_buf(part_buf, pbi, '\0');
 						pbi ^= pbi;
 						create_part_control(output_to_start_part, &first, &last);
-						space_trigger ^= space_trigger;
+						space_count ^= space_count;
 						break;
 					}
 					copa_last_comp_value = comp_last_part_for_output_to_start((const copa*)last);
-					if (copa_last_comp_value == 2 || (copa_last_comp_value == 1 && space_trigger))
+					if (copa_last_comp_value == 2 || (copa_last_comp_value == 1 && space_count))
 						input_error_trigger = 1;
 					else if (copa_last_comp_value == 1)
 						last->part = output_to_end_part;
 					else {
 						create_part_control(output_to_start_part, &first, &last);
-						space_trigger ^= space_trigger;
+						space_count ^= space_count;
 					}
 					break;
 				case 0x7c: // '|'
@@ -278,17 +313,17 @@ break_execute:				write(1, w8, sizeof(w8));
 						set_buf(part_buf, pbi, '\0');
 						pbi ^= pbi;
 						create_part_control(conveyor_part, &first, &last);
-						space_trigger ^= space_trigger;
+						space_count ^= space_count;
 						break;
 					}
 					copa_last_comp_value = comp_last_part_for_conveyor((const copa*)last);
-					if (copa_last_comp_value == 2 || (copa_last_comp_value == 1 && space_trigger))
+					if (copa_last_comp_value == 2 || (copa_last_comp_value == 1 && space_count))
 						input_error_trigger = 1;
 					else if (copa_last_comp_value == 1)
 						last->part = or_part;
 					else {
 						create_part_control(conveyor_part, &first, &last);
-						space_trigger ^= space_trigger;
+						space_count ^= space_count;
 					}
 					break;
 				case 0x9: //    '	'
@@ -298,12 +333,13 @@ break_execute:				write(1, w8, sizeof(w8));
 					if (quote_trigger)
 						goto dflt;
 					else {
+						space_count++;
 						if (pbi > 0){
 							create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
 							set_buf(part_buf, pbi, '\0');
 							pbi ^= pbi;
-						} else
-							space_trigger = 1;
+						} /*else
+							space_count++;*/
 						if (read_buf[rbi] == 0x9)
 							write(1, "	", 1);
 						else if (read_buf[rbi] == 0x20)
@@ -322,6 +358,7 @@ dflt:				default:
 		clean_read_buf(read_buf, read_return);
 		if(S == 'S') break;
 	}
+	printf("\nSpace count: %d\n", space_count);
 	free_copa(first);
 	write(1, "\n", 1);
 	tcsetattr(0, TCSADRAIN, &termios_old_p);
