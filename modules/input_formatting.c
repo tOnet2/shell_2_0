@@ -15,6 +15,8 @@ extern uint8_t output_to_end_part[];
 extern uint8_t input_from_part[];
 extern uint8_t bracket_left_part[];
 extern uint8_t bracket_right_part[];
+extern uint8_t quote_part[];
+extern uint8_t shield_part[];
 
 void clean_read_buf (uint8_t *buf, int32_t size)
 {
@@ -126,12 +128,25 @@ void fill_space_buffer (uint8_t *buf, int32_t length)
 		buf[length] = 0X20;
 }
 
+void copa_part_backspace (const uint8_t *part, uint8_t *new_part, int32_t size_for_copy)
+{
+	for (; size_for_copy >= 0; size_for_copy--)
+		new_part[size_for_copy] = part[size_for_copy];
+}
+
+int32_t space_part_check (const uint8_t *part)
+{
+	for (; *part; part++)
+		if (*part != 0x20) return 0;
+	return 1;
+}
+
 void free_copa (copa *t)
 {
 	while (t) {
 		copa *tmp = t;
 		t = t->next;
-		if (tmp->part > bracket_right_part || tmp->part < conveyor_part)
+		if (tmp && !(tmp->part >= conveyor_part && tmp->part <= shield_part))
 			free(tmp->part);
 		free(tmp);
 	}
