@@ -65,7 +65,7 @@ int main (int argc, char **argv)
 	}
 	int32_t read_return, rbi, pbi, S;
 	int32_t copa_last_comp_value;
-	uint8_t shield_trigger, quote_trigger, input_error_trigger, space_count, bracket_trigger;
+	int32_t shield_trigger, quote_trigger, input_error_trigger, space_count, bracket_trigger;
 	copa *first, *last, *tmp;
 	tmp = first = last = NULL;
 	/*
@@ -84,7 +84,7 @@ int main (int argc, char **argv)
 		}
 		for (rbi ^= rbi; read_buf[rbi]; rbi++) {
 			/*
-			 * 0x8  = '\b'	(Backspace)------------------------
+			 * 0x8  = '\b'	(Backspace)
 			 * 0x1b = '^['	(Esc)
 			 * 0x5b = '['	(After Esc for some keys)
 			 * 0x9  = '\t'	(Tabulation)
@@ -135,8 +135,18 @@ break_execute:				write(1, w8, sizeof(w8));
 				case 0x8:
 					if (pbi > 0) {
 						write(1, "\b \b", 3);
-						pbi--;
-						part_buf[pbi] = '\0';
+						part_buf[--pbi] = '\0';
+						if (!pbi && last && !last->prev && space_part_check((const uint8_t*)last->part)) {
+							space_count = size_of_copa_part((const uint8_t*)last->part);
+							free_copa(first);
+							first = last = NULL;
+						} else if (last && last->prev && space_part_check((const uint8_t*)last->part)) {
+							space_count = size_of_copa_part((const uint8_t*)last->part);
+							tmp = last->prev;
+							free_copa(last);
+							last = tmp;
+							tmp = tmp->next = NULL;
+						}
 						break;
 					}
 					if (space_count) {
@@ -147,72 +157,121 @@ break_execute:				write(1, w8, sizeof(w8));
 					if (last) {
 						write(1, "\b \b", 3);
 						if (last->part >= conveyor_part && last->part <= shield_part) {
+							if (last->part == and_part) {
+								last->part = background_part;
+								if (last->prev && space_part_check((const uint8_t*)last->prev->part)) {
+									if (comp_last_part_for_background((const copa*)last->prev->prev) == 2)
+										input_error_trigger++;
+								} else
+									if (comp_last_part_for_background((const copa*)last->prev) == 2)
+										input_error_trigger++;
+								break;
+							}
+							if (last->part == or_part) {
+								last->part = conveyor_part;
+								if (last->prev && space_part_check((const uint8_t*)last->prev->part)) {
+									if (comp_last_part_for_conveyor((const copa*)last->prev->prev) == 2)
+										input_error_trigger++;
+								} else
+									if (comp_last_part_for_conveyor((const copa*)last->prev) == 2)
+										input_error_trigger++;
+								break;
+							}
 							if (last->part == bracket_right_part) bracket_trigger++;
 							if (last->part == bracket_left_part) bracket_trigger--;
 							if (last->part == quote_part) {
-								if (quote_trigger) quote_trigger ^= quote_trigger;
-								else quote_trigger |= quote_trigger;
+								if (!quote_trigger) {
+									quote_trigger |= 1;
+									if (last->prev) {
+										if (last->prev->part == quote_part) {
+											input_error_trigger++;
+										} else {
+											pbi = size_of_copa_part((const uint8_t*)last->prev->part);
+											copy_str1_to_str2((const uint8_t*)last->prev->part, part_buf, pbi);
+											tmp = last->prev->prev;
+											free_copa(last->prev);
+											last = tmp;
+											tmp = tmp->next = NULL;
+											break;
+										}
+									}
+								}
+								else quote_trigger ^= quote_trigger;
+								goto backspace_control_symbols_end;
 							}
 							if (last->part == shield_part) shield_trigger ^= shield_trigger;
 							if (input_error_trigger) {
 								if (!last->prev)
-									input_error_trigger ^= input_error_trigger;
+									input_error_trigger--;
 								else if (space_part_check(last->prev->part)) {
-									if (!last->prev->prev) input_error_trigger ^= input_error_trigger;
-									else {
+									
+									if (!last->prev->prev) {
+										input_error_trigger--;
+										free(last->prev->part);
+										free(last->prev);
+										last->prev = NULL;
+									} else {
 										if (last->part == conveyor_part)
 											if (comp_last_part_for_conveyor((const copa*)last->prev->prev) == 2)
-												input_error_trigger ^= input_error_trigger;
+												input_error_trigger--;
 										if (last->part == background_part)
 											if (comp_last_part_for_background((const copa*)last->prev->prev) == 2)
-												input_error_trigger ^= input_error_trigger;
+												input_error_trigger--;
 										if (last->part == train_part)
 											if (comp_last_part_for_train((const copa*)last->prev->prev) == 1)
-												input_error_trigger ^= input_error_trigger;
+												input_error_trigger--;
 										if (last->part == bracket_left_part)
-											if (comp_last_part_for_bracket_left((const copa*)last->prev->prev) == 0)
-												input_error_trigger ^= input_error_trigger;
+											if (comp_last_part_for_bracket_left((const copa*)last->prev->prev) == 1)
+												input_error_trigger--;
 										if (last->part == bracket_right_part)
 											if (comp_last_part_for_bracket_right((const copa*)last->prev->prev) == 1)
-												input_error_trigger ^= input_error_trigger;
+												input_error_trigger--;
 										if (last->part == input_from_part)
 											if (comp_last_part_for_input_from((const copa*)last->prev->prev) == 1)
-												input_error_trigger ^= input_error_trigger;
+												input_error_trigger--;
 										if (last->part == output_to_start_part)
 											if (comp_last_part_for_output_to_start((const copa*)last->prev->prev) == 2)
-												input_error_trigger ^= input_error_trigger;
+												input_error_trigger--;
 									}
 								} else {
 									if (last->part == conveyor_part)
 										if (comp_last_part_for_conveyor((const copa*)last->prev) == 2)
-											input_error_trigger ^= input_error_trigger;
+											input_error_trigger--;
 									if (last->part == background_part)
 										if (comp_last_part_for_background((const copa*)last->prev) == 2)
-											input_error_trigger ^= input_error_trigger;
+											input_error_trigger--;
 									if (last->part == train_part)
 										if (comp_last_part_for_train((const copa*)last->prev) == 1)
-											input_error_trigger ^= input_error_trigger;
+											input_error_trigger--;
 									if (last->part == bracket_left_part)
-										if (comp_last_part_for_bracket_left((const copa*)last->prev) == 0)
-											input_error_trigger ^= input_error_trigger;
+										if (comp_last_part_for_bracket_left((const copa*)last->prev) == 1)
+											input_error_trigger--;
 									if (last->part == bracket_right_part)
 										if (comp_last_part_for_bracket_right((const copa*)last->prev) == 1)
-											input_error_trigger ^= input_error_trigger;
+											input_error_trigger--;
 									if (last->part == input_from_part)
 										if (comp_last_part_for_input_from((const copa*)last->prev) == 1)
-											input_error_trigger ^= input_error_trigger;
+											input_error_trigger--;
 									if (last->part == output_to_start_part)
 										if (comp_last_part_for_output_to_start((const copa*)last->prev) == 2)
-											input_error_trigger ^= input_error_trigger;
+											input_error_trigger--;
 								}
 							}
-							if ((!last->prev || (last->prev->part >= conveyor_part && last->prev->part <= input_from_part)\
-								|| space_part_check(last->prev->part))\
-								&& input_error_trigger)
-									input_error_trigger ^= input_error_trigger;
-							tmp = last->prev;
+							if (last->prev && space_part_check((const uint8_t*)last->prev->part)) {
+								space_count = size_of_copa_part((const uint8_t*)last->prev->part);
+								tmp = last->prev->prev;
+								free_copa(last->prev);
+								last = tmp;
+								if (tmp)
+									tmp = tmp->next = NULL;
+								else
+									first = NULL;
+								break;
+							}
+backspace_control_symbols_end:				tmp = last->prev;
 							free(last);
 							last = tmp;
+
 							if (tmp) {
 								tmp = tmp->next = NULL;
 							} else
@@ -227,6 +286,19 @@ break_execute:				write(1, w8, sizeof(w8));
 								last->part = new_part;
 							} else if (part_size == 1) {
 								if (last->prev) {
+									if (!last->prev->prev && space_part_check((const uint8_t*)last->prev->part)) {
+										space_count = size_of_copa_part((const uint8_t*)last->prev->part);
+										free_copa(first);
+										first = last = NULL;
+										break;
+									} else if (space_part_check((const uint8_t*)last->prev->part)) {
+										space_count = size_of_copa_part((const uint8_t*)last->prev->part);
+										tmp = last->prev->prev;
+										free_copa(last->prev);
+										last = tmp;
+										tmp = tmp->next = NULL;
+										break;
+									}
 									tmp = last->prev;
 									free(last->part);
 									free(last);
@@ -242,12 +314,17 @@ break_execute:				write(1, w8, sizeof(w8));
 					}
 					break;
 				case 0x5c: // '\'
-					if (shield_trigger) {
+					if (shield_trigger || quote_trigger) {
 						shield_trigger ^= shield_trigger;
 						goto dflt;
 					}
 					write(1, "\\", 1);
 					shield_trigger |= 1;
+					if (pbi > 0) {
+						create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
+						set_buf(part_buf, pbi, '\0');
+						pbi ^= pbi;
+					}
 					if (space_count) {
 						fill_space_buffer(space_buf, space_count);
 						create_part_copa((const uint8_t*)space_buf, space_count, &first, &last);
@@ -261,14 +338,21 @@ break_execute:				write(1, w8, sizeof(w8));
 						goto dflt;
 					}
 					write(1, "\"", 1);
-					if (quote_trigger)
+					if (quote_trigger) {
 						quote_trigger ^= quote_trigger;
-					else
+						if (pbi > 0) {
+							create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
+							set_buf(part_buf, pbi, '\0');
+							pbi ^= pbi;
+						} else
+							input_error_trigger++;
+					} else {
 						quote_trigger |= 1;
-					if (space_count) {
-						fill_space_buffer(space_buf, space_count);
-						create_part_copa((const uint8_t*)space_buf, space_count, &first, &last);
-						space_count ^= space_count;
+						if (space_count) {
+							fill_space_buffer(space_buf, space_count);
+							create_part_copa((const uint8_t*)space_buf, space_count, &first, &last);
+							space_count ^= space_count;
+						}
 					}
 					create_part_control(quote_part, &first, &last);
 					break;
@@ -282,38 +366,29 @@ break_execute:				write(1, w8, sizeof(w8));
 						create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
 						set_buf(part_buf, pbi, '\0');
 						pbi ^= pbi;
-						create_part_control(background_part, &first, &last);
-						space_count ^= space_count;
 						break;
 					}
-					if (last && space_part_check((const uint8_t*)last->part))
+					if (space_count) {
+						fill_space_buffer(space_buf, space_count);
+						create_part_copa((const uint8_t*)space_buf, space_count, &first, &last);
+						set_buf(space_buf, space_count, '\0');
 						copa_last_comp_value = comp_last_part_for_background((const copa*)last->prev);
-					else
+					} else
 						copa_last_comp_value = comp_last_part_for_background((const copa*)last);
-					if (copa_last_comp_value == 2) {
-						input_error_trigger = 1;
+					if (copa_last_comp_value == 1) {
 						if (space_count) {
-							fill_space_buffer(space_buf, space_count);
-							create_part_copa((const uint8_t*)space_buf, space_count, &first, &last);
 							create_part_control(background_part, &first, &last);
 							space_count ^= space_count;
-							break;
-						}
-						create_part_control(background_part, &first, &last);
+						} else
+							last->part = and_part;
+						break;
 					}
-					else if (copa_last_comp_value == 1) {
-						if (space_count) {
-							fill_space_buffer(space_buf, space_count);
-							create_part_copa((const uint8_t*)space_buf, space_count, &first, &last);
-							create_part_control(background_part, &first, &last);
-							space_count ^= space_count;
-							break;
-						}
-						last->part = and_part;
-					} else {
-						create_part_control(background_part, &first, &last);
-						space_count ^= space_count;
-					}
+					if (copa_last_comp_value == 2)
+						input_error_trigger++;
+					create_part_control(background_part, &first, &last);
+					space_count ^= space_count;
+					/*pbi_spaceCount_copaLastCompValue(part_buf, space_buf, &first, &last, background_part, and_part\
+						, &pbi, &space_count, &input_error_trigger, 1, &comp_last_part_for_background);*/
 					break;
 				case 0x28: // '('
 					if (shield_trigger || quote_trigger) {
@@ -322,11 +397,22 @@ break_execute:				write(1, w8, sizeof(w8));
 					}
 					write(1, "(", 1);
 					bracket_trigger++;
-					copa_last_comp_value = comp_last_part_for_bracket_left ((const copa*)last);
-					if (copa_last_comp_value == 1 || pbi > 0)
-						input_error_trigger = 1;
-					else
-						create_part_control(bracket_left_part, &first, &last);
+					if (pbi > 0) {
+						create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
+						set_buf(part_buf, pbi, '\0');
+						pbi ^= pbi;
+					}
+					if (space_count) {
+						fill_space_buffer(space_buf, space_count);
+						create_part_copa((const uint8_t*)space_buf, space_count, &first, &last);
+						set_buf(space_buf, space_count, '\0');
+						space_count ^= space_count;
+						copa_last_comp_value = comp_last_part_for_bracket_left((const copa*)last->prev);
+					} else
+						copa_last_comp_value = comp_last_part_for_bracket_left((const copa*)last);
+					if (copa_last_comp_value == 1)
+						input_error_trigger++;
+					create_part_control(bracket_left_part, &first, &last);
 					break;
 				case 0x29: // ')'
 					if (shield_trigger || quote_trigger) {
@@ -334,20 +420,23 @@ break_execute:				write(1, w8, sizeof(w8));
 						goto dflt;
 					}
 					write(1, ")", 1);
+					bracket_trigger--;
 					if (pbi > 0) {
 						create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
 						set_buf(part_buf, pbi, '\0');
 						pbi ^= pbi;
-						bracket_trigger--;
-						create_part_control(bracket_right_part, &first, &last);
-						break;
 					}
-					bracket_trigger--;
-					copa_last_comp_value = comp_last_part_for_bracket_right ((const copa*)last);
+					if (space_count) {
+						fill_space_buffer(space_buf, space_count);
+						create_part_copa((const uint8_t*)space_buf, space_count, &first, &last);
+						set_buf(space_buf, space_count, '\0');
+						space_count ^= space_count;
+						copa_last_comp_value = comp_last_part_for_bracket_right((const copa*)last->prev);
+					} else
+						copa_last_comp_value = comp_last_part_for_bracket_right((const copa*)last);
 					if (copa_last_comp_value == 1)
-						input_error_trigger = 1;
-					else
-						create_part_control(bracket_right_part, &first, &last);
+						input_error_trigger++;
+					create_part_control(bracket_right_part, &first, &last);
 					break;
 				case 0x3b: // ';'
 					if (shield_trigger || quote_trigger) {
@@ -359,14 +448,18 @@ break_execute:				write(1, w8, sizeof(w8));
 						create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
 						set_buf(part_buf, pbi, '\0');
 						pbi ^= pbi;
-						create_part_control(train_part, &first, &last);
-						break;
 					}
-					copa_last_comp_value = comp_last_part_for_train((const copa*)last);
+					if (space_count) {
+						fill_space_buffer(space_buf, space_count);
+						create_part_copa((const uint8_t*)space_buf, space_count, &first, &last);
+						set_buf(space_buf, space_count, '\0');
+						space_count ^= space_count;
+						copa_last_comp_value = comp_last_part_for_train((const copa*)last->prev);
+					} else
+						copa_last_comp_value = comp_last_part_for_train((const copa*)last);
 					if (copa_last_comp_value == 1)
 						input_error_trigger = 1;
-					else
-						create_part_control(train_part, &first, &last);
+					create_part_control(train_part, &first, &last);
 					break;
 				case 0x3c: // '<'
 					if (shield_trigger || quote_trigger) {
@@ -378,14 +471,18 @@ break_execute:				write(1, w8, sizeof(w8));
 						create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
 						set_buf(part_buf, pbi, '\0');
 						pbi ^= pbi;
-						create_part_control(input_from_part, &first, &last);
-						break;
 					}
-					copa_last_comp_value = comp_last_part_for_input_from((const copa*)last);
+					if (space_count) {
+						fill_space_buffer(space_buf, space_count);
+						create_part_copa((const uint8_t*)space_buf, space_count, &first, &last);
+						set_buf(space_buf, space_count, '\0');
+						space_count ^= space_count;
+						copa_last_comp_value = comp_last_part_for_input_from((const copa*)last->prev);
+					} else
+						copa_last_comp_value = comp_last_part_for_input_from((const copa*)last);
 					if (copa_last_comp_value == 1)
 						input_error_trigger = 1;
-					else
-						create_part_control(input_from_part, &first, &last);
+					create_part_control(input_from_part, &first, &last);
 					break;
 				case 0x3e: // '>'
 					if (shield_trigger || quote_trigger) {
@@ -397,26 +494,26 @@ break_execute:				write(1, w8, sizeof(w8));
 						create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
 						set_buf(part_buf, pbi, '\0');
 						pbi ^= pbi;
-						create_part_control(output_to_start_part, &first, &last);
-						space_count ^= space_count;
+					}
+					if (space_count) {
+						fill_space_buffer(space_buf, space_count);
+						create_part_copa((const uint8_t*)space_buf, space_count, &first, &last);
+						set_buf(space_buf, space_count, '\0');
+						copa_last_comp_value = comp_last_part_for_input_from((const copa*)last->prev);
+					} else
+						copa_last_comp_value = comp_last_part_for_input_from((const copa*)last);
+					if (copa_last_comp_value == 1) {
+						if (space_count) {
+							create_part_control(output_to_start_part, &first, &last);
+							space_count ^= space_count;
+						} else
+							last->part = output_to_end_part;
 						break;
 					}
-					copa_last_comp_value = comp_last_part_for_output_to_start((const copa*)last);
 					if (copa_last_comp_value == 2)
-						input_error_trigger = 1;
-					else if (copa_last_comp_value == 1) {
-						if (space_count) {
-							fill_space_buffer(space_buf, space_count);
-							create_part_copa((const uint8_t*)space_buf, space_count, &first, &last);
-							create_part_control(background_part, &first, &last);
-							space_count ^= space_count;
-							break;
-						}
-						last->part = output_to_end_part;
-					} else {
-						create_part_control(output_to_start_part, &first, &last);
-						space_count ^= space_count;
-					}
+						input_error_trigger++;
+					create_part_control(output_to_start_part, &first, &last);
+					space_count ^= space_count;
 					break;
 				case 0x7c: // '|'
 					if (shield_trigger || quote_trigger) {
@@ -428,26 +525,27 @@ break_execute:				write(1, w8, sizeof(w8));
 						create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
 						set_buf(part_buf, pbi, '\0');
 						pbi ^= pbi;
-						create_part_control(conveyor_part, &first, &last);
-						space_count ^= space_count;
 						break;
 					}
-					copa_last_comp_value = comp_last_part_for_conveyor((const copa*)last);
-					if (copa_last_comp_value == 2)
-						input_error_trigger = 1;
-					else if (copa_last_comp_value == 1) {
+					if (space_count) {
+						fill_space_buffer(space_buf, space_count);
+						create_part_copa((const uint8_t*)space_buf, space_count, &first, &last);
+						set_buf(space_buf, space_count, '\0');
+						copa_last_comp_value = comp_last_part_for_conveyor((const copa*)last->prev);
+					} else
+						copa_last_comp_value = comp_last_part_for_conveyor((const copa*)last);
+					if (copa_last_comp_value == 1) {
 						if (space_count) {
-							fill_space_buffer(space_buf, space_count);
-							create_part_copa((const uint8_t*)space_buf, space_count, &first, &last);
-							create_part_control(background_part, &first, &last);
+							create_part_control(conveyor_part, &first, &last);
 							space_count ^= space_count;
-							break;
-						}
-						last->part = or_part;
-					} else {
-						create_part_control(conveyor_part, &first, &last);
-						space_count ^= space_count;
+						} else
+							last->part = or_part;
+						break;
 					}
+					if (copa_last_comp_value == 2)
+						input_error_trigger++;
+					create_part_control(conveyor_part, &first, &last);
+					space_count ^= space_count;
 					break;
 				case 0x9: //    '	'
 				case 0x20: //   ' '

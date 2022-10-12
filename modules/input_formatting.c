@@ -2,6 +2,7 @@
 #include "headers/shell_2_0.h"
 #include "headers/input_formatting.h"
 #include <stdlib.h>
+#include <stdio.h>
 
 typedef struct command_parts copa;
 
@@ -146,7 +147,7 @@ void free_copa (copa *t)
 	while (t) {
 		copa *tmp = t;
 		t = t->next;
-		if (tmp && !(tmp->part >= conveyor_part && tmp->part <= shield_part))
+		if (!(tmp->part >= conveyor_part && tmp->part <= shield_part))
 			free(tmp->part);
 		free(tmp);
 	}
@@ -159,4 +160,49 @@ int32_t comp_str1_with_str2 (const uint8_t *str1, const uint8_t *str2)
 	if (!*str1 && !*str2)
 		return 1;
 	return 0;
+}
+
+void copy_str1_to_str2 (const uint8_t *str1, uint8_t *str2, int32_t str1_size) // without '\0' symbol
+{
+	for (--str1_size; str1_size >= 0; str1_size--)
+		str2[str1_size] = str1[str1_size];
+}
+
+void pbi_spaceCount_copaLastCompValue (uint8_t *part_buf, uint8_t *space_buf, copa **first\
+	, copa **last, uint8_t *control_part1, uint8_t *control_part2, int32_t *pbi\
+	, int32_t *space_count, int32_t *input_error_trigger, int32_t reset_space_count_for_andor_parts\
+	, int32_t (*comp_last_part_for)(const copa*))
+{
+	int copa_last_comp_value = 0;
+	if (*pbi > 0) {
+		create_part_copa((const uint8_t*)part_buf, *pbi, first, last);
+		set_buf(part_buf, *pbi, '\0');
+		*pbi ^= *pbi;
+	}
+	if (*space_count) {
+		fill_space_buffer(space_buf, *space_count);
+		create_part_copa((const uint8_t*)space_buf, *space_count, first, last);
+		set_buf(space_buf, *space_count, '\0');
+		if (!reset_space_count_for_andor_parts) 
+			*space_count ^= *space_count;
+		copa_last_comp_value = comp_last_part_for((const copa*)(*last)->prev);
+	} else
+		copa_last_comp_value = comp_last_part_for((const copa*)(*last));
+	if (reset_space_count_for_andor_parts) {
+		if (copa_last_comp_value == 1) {
+			if (space_count) {
+				create_part_control(control_part1, first, last);
+				*space_count ^= *space_count;
+			} else
+				(*last)->part = control_part2;
+			return;
+		}
+		if (copa_last_comp_value == 2)
+			(*input_error_trigger)++;
+		create_part_control(control_part1, first, last);
+		*space_count ^= *space_count;
+	}
+	if (copa_last_comp_value == 1)
+		(*input_error_trigger)++;
+	create_part_control(control_part1, first, last);
 }
