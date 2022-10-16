@@ -87,13 +87,12 @@ int main (int argc, char **argv)
 			 * 0x8  = '\b'	(Backspace)
 			 * 0x1b = '^['	(Esc)
 			 * 0x5b = '['	(After Esc for some keys)
-			 * 0x9  = '\t'	(Tabulation)
+			 * 0x9  = '\t'	(Tabulation)-----------------------
 			 * 0x10 = '\n'	(New line)
-			 * 0x18 = '^R'	(Restore last word)----------------
 			 * 0x20 = ' '	(Space)
 			 * 0x22 = '"'	(Symbol for using spaces and tabs
 			 * 		 in part and other syms)
-			 * 0x23 = '^W'	(Delete last word)-----------------
+			 * 0x17 = '^W'	(Delete last word)
 			 * 0x26 = '&'	(For background process)
 			 * 0x28 0x29 =	'(' ')
 			 * 0x3b = ';'	(For traing of process)
@@ -140,7 +139,7 @@ break_execute:				write(1, w8, sizeof(w8));
 							space_count = size_of_copa_part((const uint8_t*)last->part);
 							free_copa(first);
 							first = last = NULL;
-						} else if (last && last->prev && space_part_check((const uint8_t*)last->part)) {
+						} else if (!pbi && last && last->prev && space_part_check((const uint8_t*)last->part)) {
 							space_count = size_of_copa_part((const uint8_t*)last->part);
 							tmp = last->prev;
 							free_copa(last);
@@ -157,24 +156,16 @@ break_execute:				write(1, w8, sizeof(w8));
 					if (last) {
 						write(1, "\b \b", 3);
 						if (last->part >= conveyor_part && last->part <= shield_part) {
-							if (last->part == and_part) {
+for_0x8_and_0x17_first:					if (last->part == and_part) {
 								last->part = background_part;
-								if (last->prev && space_part_check((const uint8_t*)last->prev->part)) {
-									if (comp_last_part_for_background((const copa*)last->prev->prev) == 2)
-										input_error_trigger++;
-								} else
-									if (comp_last_part_for_background((const copa*)last->prev) == 2)
-										input_error_trigger++;
 								break;
 							}
 							if (last->part == or_part) {
 								last->part = conveyor_part;
-								if (last->prev && space_part_check((const uint8_t*)last->prev->part)) {
-									if (comp_last_part_for_conveyor((const copa*)last->prev->prev) == 2)
-										input_error_trigger++;
-								} else
-									if (comp_last_part_for_conveyor((const copa*)last->prev) == 2)
-										input_error_trigger++;
+								break;
+							}
+							if (last->part == output_to_end_part) {
+								last->part = output_to_start_part;
 								break;
 							}
 							if (last->part == bracket_right_part) bracket_trigger++;
@@ -211,48 +202,48 @@ break_execute:				write(1, w8, sizeof(w8));
 										free(last->prev);
 										last->prev = NULL;
 									} else {
-										if (last->part == conveyor_part)
+										if (last->part == conveyor_part) {
 											if (comp_last_part_for_conveyor((const copa*)last->prev->prev) == 2)
 												input_error_trigger--;
-										if (last->part == background_part)
+										} else if (last->part == background_part) {
 											if (comp_last_part_for_background((const copa*)last->prev->prev) == 2)
 												input_error_trigger--;
-										if (last->part == train_part)
+										} else if (last->part == train_part) {
 											if (comp_last_part_for_train((const copa*)last->prev->prev) == 1)
 												input_error_trigger--;
-										if (last->part == bracket_left_part)
+										} else if (last->part == bracket_left_part) {
 											if (comp_last_part_for_bracket_left((const copa*)last->prev->prev) == 1)
 												input_error_trigger--;
-										if (last->part == bracket_right_part)
+										} else if (last->part == bracket_right_part) {
 											if (comp_last_part_for_bracket_right((const copa*)last->prev->prev) == 1)
 												input_error_trigger--;
-										if (last->part == input_from_part)
+										} else if (last->part == input_from_part) {
 											if (comp_last_part_for_input_from((const copa*)last->prev->prev) == 1)
 												input_error_trigger--;
-										if (last->part == output_to_start_part)
+										} else if (last->part == output_to_start_part)
 											if (comp_last_part_for_output_to_start((const copa*)last->prev->prev) == 2)
 												input_error_trigger--;
 									}
 								} else {
-									if (last->part == conveyor_part)
+									if (last->part == conveyor_part) {
 										if (comp_last_part_for_conveyor((const copa*)last->prev) == 2)
 											input_error_trigger--;
-									if (last->part == background_part)
+									} else if (last->part == background_part) {
 										if (comp_last_part_for_background((const copa*)last->prev) == 2)
 											input_error_trigger--;
-									if (last->part == train_part)
+									} else if (last->part == train_part) {
 										if (comp_last_part_for_train((const copa*)last->prev) == 1)
 											input_error_trigger--;
-									if (last->part == bracket_left_part)
+									} else if (last->part == bracket_left_part){
 										if (comp_last_part_for_bracket_left((const copa*)last->prev) == 1)
 											input_error_trigger--;
-									if (last->part == bracket_right_part)
+									} else if (last->part == bracket_right_part) {
 										if (comp_last_part_for_bracket_right((const copa*)last->prev) == 1)
 											input_error_trigger--;
-									if (last->part == input_from_part)
+									} else if (last->part == input_from_part) {
 										if (comp_last_part_for_input_from((const copa*)last->prev) == 1)
 											input_error_trigger--;
-									if (last->part == output_to_start_part)
+									} else if (last->part == output_to_start_part)
 										if (comp_last_part_for_output_to_start((const copa*)last->prev) == 2)
 											input_error_trigger--;
 								}
@@ -285,13 +276,15 @@ backspace_control_symbols_end:				tmp = last->prev;
 								free(last->part);
 								last->part = new_part;
 							} else if (part_size == 1) {
-								if (last->prev) {
-									if (!last->prev->prev && space_part_check((const uint8_t*)last->prev->part)) {
+for_0x8_and_0x17_second:					if (last->prev) {
+									int space_part = space_part_check((const uint8_t*)last->prev->part);
+									if (!last->prev->prev && space_part) {
 										space_count = size_of_copa_part((const uint8_t*)last->prev->part);
 										free_copa(first);
 										first = last = NULL;
 										break;
-									} else if (space_part_check((const uint8_t*)last->prev->part)) {
+									}
+									if (last->prev->prev && space_part) {
 										space_count = size_of_copa_part((const uint8_t*)last->prev->part);
 										tmp = last->prev->prev;
 										free_copa(last->prev);
@@ -300,8 +293,7 @@ backspace_control_symbols_end:				tmp = last->prev;
 										break;
 									}
 									tmp = last->prev;
-									free(last->part);
-									free(last);
+									free_copa(last);
 									last = tmp;
 									tmp = tmp->next = NULL;
 								} else {
@@ -310,6 +302,145 @@ backspace_control_symbols_end:				tmp = last->prev;
 								}
 							}
 							break;
+						}
+					}
+					break;
+				case 0x17: // '^W'
+					if (pbi > 0) {
+						set_buf(part_buf, pbi, '\0');
+						for (; pbi; pbi--)
+							write(1, "\b \b", 3);	
+						for (; last && !(space_part_check((const uint8_t*)last->part)); (last = last->prev) ?\
+														(free_copa(last->next), last->next = NULL)\
+														: (last = NULL)) {
+							if (last->part >= conveyor_part && last->part <= shield_part) {
+								if (last->part == and_part) {
+									if (comp_last_part_for_and((const copa*)last->prev) == 1)
+										input_error_trigger--;
+								} else if (last->part == or_part) {
+									if (comp_last_part_for_or((const copa*)last->prev) == 1)
+										input_error_trigger--;
+								} else if (last->part == output_to_end_part) {
+									if (comp_last_part_for_output_to_end((const copa*)last->prev) == 1)
+										input_error_trigger--;
+								} else if (last->part == conveyor_part) {
+									if (comp_last_part_for_conveyor((const copa*)last->prev) == 2)
+										input_error_trigger--;
+								} else if (last->part == background_part) {
+									if (comp_last_part_for_background((const copa*)last->prev) == 2)
+										input_error_trigger--;
+								} else if (last->part == train_part) {
+									if (comp_last_part_for_train((const copa*)last->prev) == 1)
+										input_error_trigger--;
+								} else if (last->part == bracket_left_part) {
+									if (comp_last_part_for_bracket_left((const copa*)last->prev) == 1)
+										input_error_trigger--;
+								} else if (last->part == bracket_right_part) {
+									if (comp_last_part_for_bracket_right((const copa*)last->prev) == 1)
+										input_error_trigger--;
+								} else if (last->part == input_from_part) {
+									if (comp_last_part_for_input_from((const copa*)last->prev) == 1)
+										input_error_trigger--;
+								} else if (last->part == output_to_start_part)
+									if (comp_last_part_for_output_to_start((const copa*)last->prev) == 2)
+										input_error_trigger--;
+								if (last->part == and_part || last->part == or_part || last->part == output_to_end_part) {
+									write(1, "\b \b\b \b", 6);
+								} else
+									write(1, "\b \b", 3);
+							} else {
+								int part_size = size_of_copa_part((const uint8_t*)last->part);
+								for (; part_size; part_size--)
+									write(1, "\b \b", 3);
+							}
+						}
+						if (last && !last->prev) {
+							if (space_part_check((const uint8_t*)last->part))
+								space_count = size_of_copa_part((const uint8_t*)last->part);
+							free_copa(first);
+							first = last = NULL;
+						} else if (last && last->prev) {
+							if (space_part_check((const uint8_t*)last->part)) {
+								space_count = size_of_copa_part((const uint8_t*)last->part);
+								last = last->prev;
+								free_copa(last->next);
+								last->next = NULL;
+							}
+						} else if (!last) {
+							free_copa(first);
+							first = last = NULL;
+						}
+						break;
+					}
+					if (space_count) {
+						for (; space_count; space_count--)
+							write(1, "\b \b", 1);
+						space_count ^= space_count;
+					}
+					if (last) {
+						for (; last->prev && !(space_part_check((const uint8_t*)last->prev->part)); last = last->prev,\
+															    free_copa(last->next),\
+															    last->next = NULL) {
+							if (last->part >= conveyor_part && last->part <= shield_part) {
+								if (last->part == and_part) {
+									if (comp_last_part_for_and((const copa*)last->prev) == 1)
+										input_error_trigger--;
+								} else if (last->part == or_part) {
+									if (comp_last_part_for_or((const copa*)last->prev) == 1)
+										input_error_trigger--;
+								} else if (last->part == output_to_end_part) {
+									if (comp_last_part_for_output_to_end((const copa*)last->prev) == 1)
+										input_error_trigger--;
+								} else if (last->part == conveyor_part) {
+									if (comp_last_part_for_conveyor((const copa*)last->prev) == 2)
+										input_error_trigger--;
+								} else if (last->part == background_part) {
+									if (comp_last_part_for_background((const copa*)last->prev) == 2)
+										input_error_trigger--;
+								} else if (last->part == train_part) {
+									if (comp_last_part_for_train((const copa*)last->prev) == 1)
+										input_error_trigger--;
+								} else if (last->part == bracket_left_part) {
+									if (comp_last_part_for_bracket_left((const copa*)last->prev) == 1)
+										input_error_trigger--;
+								} else if (last->part == bracket_right_part) {
+									if (comp_last_part_for_bracket_right((const copa*)last->prev) == 1)
+										input_error_trigger--;
+								} else if (last->part == input_from_part) {
+									if (comp_last_part_for_input_from((const copa*)last->prev) == 1)
+										input_error_trigger--;
+								} else if (last->part == output_to_start_part)
+									if (comp_last_part_for_output_to_start((const copa*)last->prev) == 2)
+										input_error_trigger--;
+								if (last->part == and_part || last->part == or_part || last->part == output_to_end_part)
+									write(1, "\b \b\b \b", 6);
+								else
+									write(1, "\b \b", 3);
+
+							} else {
+								int part_size = size_of_copa_part((const uint8_t*)last->part);
+								for (; part_size; part_size--)
+									write(1, "\b \b", 3);
+							}
+						}
+						if (last->part >= conveyor_part && last->part <= shield_part) {
+							if (last->part == and_part) {
+								last->part = background_part;
+								write(1, "\b \b\b \b", 6);
+							} else if (last->part == or_part) {
+								last->part = conveyor_part;
+								write(1, "\b \b\b \b", 6);
+							} else if (last->part == output_to_end_part) {
+								last->part = output_to_start_part;
+								write(1, "\b \b\b \b", 6);
+							} else
+								write(1, "\b \b", 3);
+							goto for_0x8_and_0x17_first;
+						} else {
+							int part_size = size_of_copa_part((const uint8_t*)last->part);
+							for (; part_size; part_size--)
+								write(1, "\b \b", 3);
+							goto for_0x8_and_0x17_second;
 						}
 					}
 					break;
@@ -366,7 +497,6 @@ backspace_control_symbols_end:				tmp = last->prev;
 						create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
 						set_buf(part_buf, pbi, '\0');
 						pbi ^= pbi;
-						break;
 					}
 					if (space_count) {
 						fill_space_buffer(space_buf, space_count);
@@ -481,7 +611,7 @@ backspace_control_symbols_end:				tmp = last->prev;
 					} else
 						copa_last_comp_value = comp_last_part_for_input_from((const copa*)last);
 					if (copa_last_comp_value == 1)
-						input_error_trigger = 1;
+						input_error_trigger++;
 					create_part_control(input_from_part, &first, &last);
 					break;
 				case 0x3e: // '>'
@@ -499,9 +629,9 @@ backspace_control_symbols_end:				tmp = last->prev;
 						fill_space_buffer(space_buf, space_count);
 						create_part_copa((const uint8_t*)space_buf, space_count, &first, &last);
 						set_buf(space_buf, space_count, '\0');
-						copa_last_comp_value = comp_last_part_for_input_from((const copa*)last->prev);
+						copa_last_comp_value = comp_last_part_for_output_to_start((const copa*)last->prev);
 					} else
-						copa_last_comp_value = comp_last_part_for_input_from((const copa*)last);
+						copa_last_comp_value = comp_last_part_for_output_to_start((const copa*)last);
 					if (copa_last_comp_value == 1) {
 						if (space_count) {
 							create_part_control(output_to_start_part, &first, &last);
@@ -525,7 +655,6 @@ backspace_control_symbols_end:				tmp = last->prev;
 						create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
 						set_buf(part_buf, pbi, '\0');
 						pbi ^= pbi;
-						break;
 					}
 					if (space_count) {
 						fill_space_buffer(space_buf, space_count);
@@ -570,7 +699,7 @@ backspace_control_symbols_end:				tmp = last->prev;
 					S = 'S';
 					break;
 dflt:				default:
-					if (pbi == 0 && space_count) {
+					if (pbi == 0 && space_count && last) {
 						fill_space_buffer(space_buf, space_count);
 						create_part_copa((const uint8_t*)space_buf, space_count, &first, &last);
 						space_count ^= space_count;

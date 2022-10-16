@@ -122,6 +122,26 @@ int32_t comp_last_part_for_output_to_start (const copa *last)
 	return 0;
 }
 
+int32_t comp_last_part_for_and (const copa *last)
+{
+	if (!last || (last->part >= conveyor_part && last->part <= background_part)\
+		|| (last->part >= and_part && last->part <= bracket_left_part)) return 1;
+	return 0;
+}
+
+int32_t comp_last_part_for_or (const copa *last)
+{
+	if (!last || (last->part >= conveyor_part && last->part <= background_part)\
+		|| (last->part >= and_part && last->part <= bracket_left_part)) return 1;
+	return 0;
+}
+
+int32_t comp_last_part_for_output_to_end (const copa *last)
+{
+	if (!last || (last->part >= conveyor_part && last->part <= bracket_left_part)) return 1;
+	return 0;
+}
+
 void fill_space_buffer (uint8_t *buf, int32_t length)
 {
 	buf[length--] = '\0';
