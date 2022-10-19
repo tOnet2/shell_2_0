@@ -142,6 +142,13 @@ int32_t comp_last_part_for_output_to_end (const copa *last)
 	return 0;
 }
 
+int32_t comp_last_part_for_new_part (const copa *last, int32_t quote_trigger)
+{
+	if (!last) return 0;
+	if (last->part == bracket_right_part || (last->part == quote_part && quote_trigger)) return 1;
+	return 0;
+}
+
 void fill_space_buffer (uint8_t *buf, int32_t length)
 {
 	buf[length--] = '\0';

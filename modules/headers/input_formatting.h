@@ -15,6 +15,7 @@ int32_t comp_last_part_for_output_to_start (const copa *last);
 int32_t comp_last_part_for_and (const copa *last);
 int32_t comp_last_part_for_or (const copa *last);
 int32_t comp_last_part_for_output_to_end (const copa *last);
+int32_t comp_last_part_for_new_part (const copa *last, int32_t quote_trigger);
 void fill_space_buffer (uint8_t *buf, int32_t length);
 void copa_part_backspace (const uint8_t *part, uint8_t *new_part, int32_t size_for_copy);
 int32_t space_part_check (const uint8_t *part);
