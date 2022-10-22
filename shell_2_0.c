@@ -178,14 +178,17 @@ break_execute:				write(1, w8, sizeof(w8));
 						if (last->part >= conveyor_part && last->part <= shield_part) {
 for_0x8_and_0x17_first:					if (last->part == and_part) {
 								last->part = background_part;
+								last->cpe = last->cps;
 								break;
 							}
 							if (last->part == or_part) {
 								last->part = conveyor_part;
+								last->cpe = last->cps;
 								break;
 							}
 							if (last->part == output_to_end_part) {
 								last->part = output_to_start_part;
+								last->cpe = last->cps;
 								break;
 							}
 							if (last->part == bracket_right_part) bracket_trigger++;
@@ -195,7 +198,7 @@ for_0x8_and_0x17_first:					if (last->part == and_part) {
 									quote_trigger |= 1;
 									if (last->prev) {
 										if (last->prev->part == quote_part) {
-											input_error_trigger++;
+											input_error_trigger--;
 										} else {
 											pbi = size_of_copa_part((const uint8_t*)last->prev->part);
 											copy_str1_to_str2((const uint8_t*)last->prev->part, part_buf, pbi);
@@ -206,8 +209,7 @@ for_0x8_and_0x17_first:					if (last->part == and_part) {
 											break;
 										}
 									}
-								}
-								else quote_trigger ^= quote_trigger;
+								} else quote_trigger ^= quote_trigger;
 								goto backspace_control_symbols_end;
 							}
 							if (last->part == shield_part) shield_trigger ^= shield_trigger;
@@ -512,10 +514,9 @@ for_0x8_and_0x17_second:					if (last->prev) {
 							rbi++;
 							if (read_buf[rbi] == 0x44) {
 								if (ccp == 1) break;
-								
 								write(1, "\b", 1);
 							} else if (read_buf[rbi] ==  0x43) {
-								;
+								if (ccp == cpm) break;
 							}
 						}
 					break;
@@ -694,6 +695,7 @@ for_0x8_and_0x17_second:					if (last->prev) {
 						copa_last_comp_value = comp_last_part_for_input_from((const copa*)last);
 					if (copa_last_comp_value == 1)
 						input_error_trigger++;
+					// IM HERE, need make last cps/cpe
 					create_part_control(input_from_part, &first, &last);
 					break;
 				case 0x3e: // '>'
@@ -721,11 +723,13 @@ for_0x8_and_0x17_second:					if (last->prev) {
 							space_count ^= space_count;
 						} else
 							last->part = output_to_end_part;
+						last->cpe = last->cps + 1;
 						break;
 					}
 					if (copa_last_comp_value == 2)
 						input_error_trigger++;
 					create_part_control(output_to_start_part, &first, &last);
+					last->cps = last->cpe = ccp - 1;
 					space_count ^= space_count;
 					break;
 				case 0x7c: // '|'
@@ -753,11 +757,13 @@ for_0x8_and_0x17_second:					if (last->prev) {
 							space_count ^= space_count;
 						} else
 							last->part = or_part;
+						last->cpe = last->cps + 1;
 						break;
 					}
 					if (copa_last_comp_value == 2)
 						input_error_trigger++;
 					create_part_control(conveyor_part, &first, &last);
+					last->cps = last->cpe = ccp - 1;
 					space_count ^= space_count;
 					break;
 				case 0x9: //    '	'
@@ -779,7 +785,10 @@ for_0x8_and_0x17_second:					if (last->prev) {
 										input_error_trigger++;
 							}
 							create_part_copa((const uint8_t*)part_buf, pbi, &first, &last);
+							last->cps = ccp - size_of_copa_part((const uint8_t*)last->part) - 1;
+							last->cpe = ccp - 2;
 							set_buf(part_buf, pbi, '\0');
+							printf("\n%u %u\n", last->cps, last->cpe);
 							pbi ^= pbi;
 						}
 						if (read_buf[rbi] == 0x9)
