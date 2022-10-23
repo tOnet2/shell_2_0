@@ -15,5 +15,8 @@ int32_t comp_last_part_for_output_to_start (const copa *last);
 void free_copa (copa *t);
 uint32_t size_of_copa_part (const uint8_t *part); // without '\0' symbol
 void middle_backspace_for_buf (uint8_t *buf, int32_t from, int32_t to);
+void middle_backword_for_buf (uint8_t *buf, int32_t new_pos, int32_t from, int32_t to);
+void middle_del_for_buf (uint8_t *buf, int32_t from, int32_t to);
+void middle_insert_for_buf (uint8_t *buf, int32_t from, int32_t to);
 
 #endif

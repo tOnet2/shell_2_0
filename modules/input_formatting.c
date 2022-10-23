@@ -139,3 +139,25 @@ void middle_backspace_for_buf (uint8_t *buf, int32_t from, int32_t to)
 		*(buf + from - 1) = *(buf + from);
 	*(buf + from - 1) = 0;
 }
+
+void middle_backword_for_buf (uint8_t *buf, int32_t new_pos, int32_t from, int32_t to)
+{
+	for (; from < to;)
+		*(buf + new_pos++) = *(buf + from++);
+	for (; new_pos < to;) {
+		*(buf + new_pos++) = 0;
+	}
+}
+
+void middle_del_for_buf (uint8_t *buf, int32_t from, int32_t to)
+{
+	for (; from < to; from++)
+		*(buf + from) = *(buf + from + 1);
+}
+
+void middle_insert_for_buf (uint8_t *buf, int32_t from, int32_t to)
+{
+	*(buf + to + 1) = 0;
+	for (; to > from; to--)
+		*(buf + to) = *(buf + to - 1);
+}

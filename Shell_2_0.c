@@ -95,13 +95,13 @@ ccmd:	for (rbi ^= rbi;; rbi++) {
  * 0x3b = ';'	(For traing of process)
  * 0x3c = '<'	(Redirect input)
  * 0x3e = '>'	(Redirect output)
- * 0x44 = 'D' 	(for <-)---------------------------
- * 0x43 = 'C' 	(for ->)---------------------------
+ * 0x44 = 'D' 	(for <-)
+ * 0x43 = 'C' 	(for ->)
  * 0x41 = 'A' 	(for ^)----------------------------
  * 0x42 = 'B' 	(for v)----------------------------
  * 0x5c = '\'	(Shielding)
  * 0x7c = '|'	(Conveyor symbol)
- * 0x7f = DEL	(Delete character under cursor)----
+ * 0x7f = DEL	(Delete character under cursor)
  */
 		switch (read_buf[rbi]) {
 			case 0:
@@ -293,7 +293,7 @@ go:	rbi = rbi_max ^= rbi_max;
 					read_buf[rbi_max] = '\0';
 					goto ccmd;
 				case 0x8: // backspace
-					if (rbi == 0) break;
+					if (!rbi) break;
 					if (rbi == rbi_max) {
 						rbi--;
 						write(1, "\b \b", 3);
@@ -309,6 +309,34 @@ go:	rbi = rbi_max ^= rbi_max;
 					}
 					break;
 				case 0x17: // ^W
+					if (!rbi) break;
+					if (rbi == rbi_max) {
+						for (; read_buf[rbi - 1] == 0x20; rbi--, rbi_max--) {
+							write(1, "\b", 1);
+							read_buf[rbi - 1] = 0;
+						}
+						for (; read_buf[rbi - 1] != 0x20 && rbi - 1 >= 0; rbi--, rbi_max--) {
+							write(1, "\b \b", 3);
+							read_buf[rbi - 1] = 0;
+						}
+					} else {
+						int r, zero, for_b, syms_deleted, need_back;
+						for (r = rbi; r > 0 && read_buf[r - 1] == 0x20; r--)
+							write(1, "\b", 1);
+						for (; r > 0 && read_buf[r - 1] != 0x20; r--)
+							write(1, "\b", 1);
+						zero = rbi - r;
+						write(1, (const uint8_t*)&read_buf[rbi], rbi_max - rbi);
+						for (; zero > 0; zero--)
+							write(1, " ", 1);
+						need_back = rbi_max - r;
+						for (for_b = 0; for_b < need_back; for_b++)
+							write(1, "\b", 1);
+						middle_backword_for_buf(read_buf, r, rbi, rbi_max);
+						syms_deleted = rbi - r;
+						rbi -= syms_deleted;
+						rbi_max -= syms_deleted;
+					}
 					break;
 				case 0x1b: // ^[
 					bi++;
@@ -329,25 +357,47 @@ go:	rbi = rbi_max ^= rbi_max;
 							break;
 						} else if (lrud == 0x42) { // V down
 							break;
+						} else if (lrud == 0x33) {
+							bi++;
+							if (buf[bi] == 0x7e) { // del
+								if (rbi == rbi_max) break;
+								write(1, (const uint8_t*)&read_buf[rbi + 1], rbi_max - rbi - 1);
+								write(1, " ", 1);
+								if (rbi == rbi_max - 1) {
+									write(1, "\b", 1);
+								} else
+									for (int32_t b = 0; b < rbi_max - rbi; b++)
+										write(1, "\b", 1);
+								rbi_max--;
+								middle_del_for_buf(read_buf, rbi, rbi_max);
+								break;
+							}
 						}
 					}
-				case 0x7f: // del
-					break;
 				case 0x9: // tab
 					break;
-				case 'S':
+				case 'S': // END PROGRAMM
 					S = 'S';
 					break;
 				default:
-					read_buf[rbi] = buf[bi];
-					write(1, (const uint8_t*)&read_buf[rbi++], 1);
-					rbi_max++;
+					if (rbi == rbi_max) {
+						read_buf[rbi] = buf[bi];
+						write(1, (const uint8_t*)&read_buf[rbi++], 1);
+						rbi_max++;
+					} else {
+						middle_insert_for_buf(read_buf, rbi, rbi_max);
+						read_buf[rbi] = buf[bi];
+						write(1, (const uint8_t*)&read_buf[rbi], rbi_max - rbi + 1);
+						for (int r = 0; r < rbi_max - rbi; r++)
+							write(1, "\b", 1);
+						rbi++;
+						rbi_max++;
+					}
 			}
 		}
 		set_buf(buf, read_return, 0);
 		if (S == 'S') break;
 	}
-//	printf("\nSpace count: %d\n", space_count);
 	free_copa(first);
 	write(1, "\n", 1);
 	tcsetattr(0, TCSADRAIN, &termios_old_p);
