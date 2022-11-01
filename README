@@ -20,9 +20,10 @@ For launch this program u need 5 steps if you want try it with Linux:
 		gcc -Wall -g -c modules/process_control.c
 		gcc Shell_2_0.o modules/input_formatting.o modules/help_functions.o modules/mk_full_hist_file_path.o modules/history_control.o modules/process_control.o -o execute_file
 
-	Or you can just run build script file (build). If he is not executable, try use command:
-		chmod +x build
-		then run it: ./build
+	Or you can just run build script file (build). If he is not executable,
+		try use command:	chmod +x build
+		then run it:		./build execute_file
+
 	flag -Wall for errors
 	flag -g for debugger
 	So you can make commands without them if you want :)
