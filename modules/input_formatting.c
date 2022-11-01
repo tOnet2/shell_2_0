@@ -1,44 +1,44 @@
 #include <stdint.h>
-#include "headers/shell_2_0.h"
+#include "headers/Shell_2_0.h"
 #include "headers/input_formatting.h"
 #include <stdlib.h>
 #include <stdio.h>
 
 typedef struct command_parts copa;
 
-extern uint8_t conveyor_part[];
-extern uint8_t train_part[];
-extern uint8_t or_part[];
-extern uint8_t background_part[];
-extern uint8_t and_part[];
-extern uint8_t output_to_start_part[];
-extern uint8_t output_to_end_part[];
-extern uint8_t input_from_part[];
-extern uint8_t bracket_left_part[];
-extern uint8_t bracket_right_part[];
-extern uint8_t quote_part[];
-extern uint8_t shield_part[];
+extern char conveyor_part[];
+extern char train_part[];
+extern char or_part[];
+extern char background_part[];
+extern char and_part[];
+extern char output_to_start_part[];
+extern char output_to_end_part[];
+extern char input_from_part[];
+extern char bracket_left_part[];
+extern char bracket_right_part[];
+extern char quote_part[];
+extern char shield_part[];
 
-void clean_read_buf (uint8_t *buf, int32_t size)
+void clean_read_buf (char *buf, int32_t size)
 {
 	for (; size; size--, buf++)
 		*buf = 0;
 }
 
-void set_buf (uint8_t *buf, int32_t size, uint8_t c)
+void set_buf (char *buf, int32_t size, char c)
 {
 	for(; size; size--, buf++)
 		*buf = c;
 }
 
-uint32_t size_of_copa_part (const uint8_t *part) // without '\0' symbol
+uint32_t size_of_copa_part (const char *part) // without '\0' symbol
 {
 	uint32_t size = 0;
 	for(; *part; part++, size++);
 	return size;
 }
 
-void create_part_control (uint8_t *buf, copa **first, copa **last)
+void create_part_control (char *buf, copa **first, copa **last)
 {
 	copa *tmp = malloc(sizeof(*tmp));
 	tmp->part = buf;
@@ -54,7 +54,7 @@ void create_part_control (uint8_t *buf, copa **first, copa **last)
 
 }
 
-void create_part_copa (const uint8_t *buf, int32_t size, copa **first, copa **last)
+void create_part_copa (const char *buf, int32_t size, copa **first, copa **last)
 {
 	copa *tmp = malloc(sizeof(*tmp));
 	tmp->part = malloc(size + 1);
@@ -133,14 +133,14 @@ void free_copa (copa *t)
 	}
 }
 
-void middle_backspace_for_buf (uint8_t *buf, int32_t from, int32_t to)
+void middle_backspace_for_buf (char *buf, int32_t from, int32_t to)
 {
 	for (; from < to; from++)
 		*(buf + from - 1) = *(buf + from);
 	*(buf + from - 1) = 0;
 }
 
-void middle_backword_for_buf (uint8_t *buf, int32_t new_pos, int32_t from, int32_t to)
+void middle_backword_for_buf (char *buf, int32_t new_pos, int32_t from, int32_t to)
 {
 	for (; from < to;)
 		*(buf + new_pos++) = *(buf + from++);
@@ -149,15 +149,28 @@ void middle_backword_for_buf (uint8_t *buf, int32_t new_pos, int32_t from, int32
 	}
 }
 
-void middle_del_for_buf (uint8_t *buf, int32_t from, int32_t to)
+void middle_del_for_buf (char *buf, int32_t from, int32_t to)
 {
 	for (; from < to; from++)
 		*(buf + from) = *(buf + from + 1);
 }
 
-void middle_insert_for_buf (uint8_t *buf, int32_t from, int32_t to)
+void middle_insert_for_buf (char *buf, int32_t from, int32_t to)
 {
 	*(buf + to + 1) = 0;
 	for (; to > from; to--)
 		*(buf + to) = *(buf + to - 1);
+}
+
+void cp_buf1tobuf2 (const char *buf1, char *buf2)
+{
+	while(*buf1)
+		*buf2++ = *buf1++;
+	*buf2 = 0;
+}
+
+void clear_buf (char *buf)
+{
+	for (; *buf;)
+		*buf++ = 0;
 }

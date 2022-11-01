@@ -1,11 +1,13 @@
-shell_2_0
-shell_2_0.o
-shell_2_0.c
 Shell_2_0
 Shell_2_0.o
 README
+help_functions
 help_functions.o
 input_formatting
 input_formatting.o
 process_control
 process_control.o
+mk_full_hist_file_path
+mk_full_hist_file_path.o
+history_control
+history_control.o

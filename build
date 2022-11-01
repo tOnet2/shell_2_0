@@ -1,0 +1,3 @@
+#!/bin/bash
+
+gcc -Wall -g Shell_2_0.c modules/input_formatting.c modules/help_functions.c modules/mk_full_hist_file_path.c modules/history_control.c modules/process_control.c -o Shell_2_0

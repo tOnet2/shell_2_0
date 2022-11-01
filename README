@@ -4,18 +4,25 @@ I am creating him as some task from book A.V. Stolyarov "Vvedenie v programmirov
 I just learn git+remote repository with this thing :)
 
 I use gcc compiler and gdb debugger.
-For launch this program u need 5 steps (without one module for now) if you want try it with Linux:
+For launch this program u need 5 steps if you want try it with Linux:
 1. You need Linux (or virtual machine)
 2. You need gcc compiler
 3. You need linker (ld) or no :)
 4. You need make a command in directory with this program:
-	gcc -Wall -g shell_2_0.c modules/input_formatting.c modules/help_functions.c -o execute_file
+	gcc -Wall -g Shell_2_0.c modules/input_formatting.c modules/help_functions.c modules/mk_full_hist_file_path.c modules/history_control.c modules/process_control.c -o execute_file
 
 	Or you can create objects file and then link them with the help gcc again (without ld):
-		gcc -Wall -g -c shell_2_0.c
+		gcc -Wall -g -c Shell_2_0.c
 		gcc -Wall -g -c modules/input_formatting.c
 		gcc -Wall -g -c modules/help_functions.c
-		gcc shell_2_0.o modules/input_formatting.o modules/help_functions.o -o execute_file
+		gcc -Wall -g -c modules/mk_full_hist_file_path.c
+		gcc -Wall -g -c modules/history_control.c
+		gcc -Wall -g -c modules/process_control.c
+		gcc Shell_2_0.o modules/input_formatting.o modules/help_functions.o modules/mk_full_hist_file_path.o modules/history_control.o modules/process_control.o -o execute_file
+
+	Or you can just run build script file (build). If he is not executable, try use command:
+		chmod +x build
+		then run it: ./build
 	flag -Wall for errors
 	flag -g for debugger
 	So you can make commands without them if you want :)
