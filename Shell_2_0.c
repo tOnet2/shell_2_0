@@ -16,6 +16,9 @@
 #include <termios.h>
 #include <fcntl.h>
 
+#define REMOVE_HIST	5 		/* NUMBER THAT FOR REMOVE SUPERFLOUS OLD COMMANDS FROM HISTORY	*/
+#define HIST_NEED	10		/* NUMBER THAT FOR REMAINING COMMANDS FOR NEW HISTORY FILE 	*/
+
 typedef struct command_parts copa;
 
 enum {
@@ -25,23 +28,27 @@ enum {
 	input_error_size = 35,
 	w8_size = 1,
 	h_f_size = 8,
+	t_h_f_size = 14,
 	l_d_size = 10,
+	h_s_size = 15,			/* HISTORY STACK SIZE => HISTORY SIZE ALL IN ALL 		*/
 };
 
-static const char w8[w8_size] = ">"; // w8 = wait.  Invation for some comand.
 static const char input_error[] = "Incorrect input of control symbols\n";
-static const char hist_file[h_f_size] = "history";				// CHANGE PATH
-static const char local_dir[l_d_size] = "Shell_2_0";
+static const char w8[w8_size] = ">"; 				/* w8 = wait.  Invation for some comand */
+static const char hist_file[h_f_size] = "history";		/* CAN CHANGE FILE NAME IF YOU WISH 	*/
+static const char temp_hist_file[t_h_f_size] = ".temp_history";	/* CAN CHANGE FILE NAME IF YOU WISH 	*/
+static const char local_dir[l_d_size] = "Shell_2_0";		/* CAN CHANGE DIR NAME IF YOU WISH 	*/
+static const char hist_stack_file[h_f_size + 1] = ".history";	/* CAN CHANGE FILE NAME IF YOU WISH 	*/
 
 char conveyor_part[part_size_five + 1] = "\" | \"";		/* DONT MOVE THEM */
 char train_part[part_size_five + 1] = "\" ; \"";		/* DONT MOVE THEM */
-char or_part[part_size_six + 1] = "\" || \"";		/* DONT MOVE THEM */
-char background_part[part_size_five + 1] = "\" & \"";	/* DONT MOVE THEM */
-char and_part[part_size_six + 1] = "\" && \"";		/* DONT MOVE THEM */
+char or_part[part_size_six + 1] = "\" || \"";			/* DONT MOVE THEM */
+char background_part[part_size_five + 1] = "\" & \"";		/* DONT MOVE THEM */
+char and_part[part_size_six + 1] = "\" && \"";			/* DONT MOVE THEM */
 char output_to_start_part[part_size_five + 1] = "\" > \"";	/* DONT MOVE THEM */
 char output_to_end_part[part_size_six + 1] = "\" >> \"";	/* DONT MOVE THEM */
-char input_from_part[part_size_five + 1] = "\" < \"";	/* DONT MOVE THEM */
-char bracket_left_part[part_size_five + 1] = "\" ( \"";	/* DONT MOVE THEM */
+char input_from_part[part_size_five + 1] = "\" < \"";		/* DONT MOVE THEM */
+char bracket_left_part[part_size_five + 1] = "\" ( \"";		/* DONT MOVE THEM */
 char bracket_right_part[part_size_five + 1] = "\" ) \"";	/* DONT MOVE THEM */
 char quote_part[part_size_five + 1] = "\" \" \"";		/* DONT MOVE THEM */
 char shield_part[part_size_five + 1] = "\" \\ \"";		/* DONT MOVE THEM */
@@ -50,47 +57,46 @@ static char read_buf[bufs_size];
 static char part_buf[bufs_size / 4];
 static char buf[bufs_size];
 static char temp_buf[bufs_size];
+static int16_t hist_stack[h_s_size];
 
 int main (int argc, char **argv)
 {
 	struct termios termios_new_p, termios_old_p;
 	if (isatty(0)) {
+/*
+ * off canon, off echo and off Ctrl+C/Ctrl+D/Ctrl+-
+ * Background processes cant use terminal for output
+ * VMIN minimum characters for read and VTIME for a wait of this
+ * Set new line desciple settings that we need
+ */
 		tcgetattr(0, &termios_old_p);
 		memcpy(&termios_new_p, &termios_old_p, sizeof(termios_new_p));
 		termios_new_p.c_lflag &= ~(ICANON | ECHO | ISIG);
-		//off canon, off echo and off Ctrl+C/Ctrl+D/Ctrl+-
 		termios_new_p.c_lflag |= TOSTOP;
-		//Background processes cant use terminal for output
 		termios_new_p.c_cc[VMIN] = 1;
 		termios_new_p.c_cc[VTIME] = 0;
-		//VMIN minimum characters for read and VTIME for a wait of this
 		tcsetattr(0, TCSANOW, &termios_new_p);
-		//Set new line desciple settings that we need
 	} else {
 		perror("Can't set termios new attributes");
 		exit(1);
 	}
-	int32_t read_return, rbi, rbi_max, pbi, bi, S;
+	int32_t read_return, rbi, rbi_max, pbi, bi, S, hsi;
 	int32_t copa_last_comp_value;
 	int32_t shield_trigger, quote_trigger, input_error_trigger, bracket_trigger;
 	int32_t for_umask = 0002;
-	int32_t hist_file_exists, fd_hist;
+	int32_t hist_file_exists, temp_hist_file_exists, hist_stack_file_exists, fd_hist, fd_stack;
 	const char *full_hist_dir_path = create_hist_dir_path(local_dir);
 	const char *full_hist_file_path = create_full_hist_path(full_hist_dir_path, hist_file);
+	const char *full_temp_hist_file_path = create_full_hist_path(full_hist_dir_path, temp_hist_file);
+	const char *full_hist_stack_path = create_full_hist_path(full_hist_dir_path, hist_stack_file);
 	umask(for_umask);
 	hist_file_exists = create_history_file(full_hist_dir_path, full_hist_file_path);
+	temp_hist_file_exists = create_history_file(full_hist_dir_path, full_temp_hist_file_path);
+	unlink(full_temp_hist_file_path);
+	hist_stack_file_exists = create_history_file(full_hist_dir_path, full_hist_stack_path);
 	copa *first, *last;
 	first = last = NULL;
-/*
- * copa *first and *last are pointer for struct command_parts (there are parts for future cmdline)
- * read_return for amount control of input characters
- * rbi - read buffer index for handing input.
- * pbi - part buffer index for control part buffer.
- * bi - buffer index
- * S - for exit of program (S need 'S' for this)
- * scsp - stack cmdline size pointer
- */
-	bracket_trigger = copa_last_comp_value = input_error_trigger = shield_trigger = quote_trigger ^= quote_trigger;
+	fd_hist = fd_stack = hsi = bracket_trigger = copa_last_comp_value = input_error_trigger = shield_trigger = quote_trigger ^= quote_trigger;
 	write(1, w8, w8_size);
 /*
  * 0x8  = '\b'	(Backspace)
@@ -306,18 +312,46 @@ go:	for (rbi = rbi_max ^= rbi_max; (read_return = read(0, buf, bufs_size));) {
 				case 0xa:
 					write(1, "\n", 1);
 					read_buf[rbi_max] = '\0';
-					if (hist_file_exists == 1) {
-						fd_hist = open(full_hist_file_path, O_RDWR);
-						if (fd_hist == -1) goto ccmd;
-						if (write(fd_hist, (const char*)read_buf, rbi_max) == -1 || write(fd_hist, "\n", 1) == -1) {
-							unlink(full_hist_file_path);
-							close(fd_hist);
-							fd_hist = -1;
-							hist_file_exists = 0;
-							perror("Broken history system");
-							goto ccmd;
-						} else {
-							;
+					if (hist_file_exists == 1 && hist_stack_file_exists == 1 && temp_hist_file_exists == 1) {
+						if (fd_hist == 0) {
+							fd_hist = open(full_hist_file_path, O_RDWR);
+							if (fd_hist == -1) {
+								fd_hist = 0;
+								goto ccmd;
+							}
+						}
+						if (rbi_max > 0) {
+							if (write(fd_hist, (const char*)read_buf, rbi_max) == -1 || write(fd_hist, "\n", 1) == -1) {
+brohisy:							reset_history((const char*)full_hist_file_path, (const char*)full_hist_stack_path,\
+									(const char*)full_temp_hist_file_path, &fd_hist, &hist_file_exists,\
+									&hist_stack_file_exists, &temp_hist_file_exists);
+								perror("Broken history system");
+								goto ccmd;
+							} else {
+								if (hsi < h_s_size) {
+									hist_stack[hsi++] = rbi_max;
+									for (int i = 0; i < h_s_size; i++)
+										printf("////////// %d\n", hist_stack[i]);
+								} else {
+									int32_t superflous_bytes = stack_bytes_for_history((const int16_t*)hist_stack, 0, REMOVE_HIST);
+									full_history_stack(hist_stack, REMOVE_HIST, h_s_size);
+									hsi = HIST_NEED;
+									hist_stack[hsi++] = rbi_max;
+									rename(full_hist_file_path, full_temp_hist_file_path);
+									lseek(fd_hist, superflous_bytes, SEEK_SET);
+									int32_t need_bytes = stack_bytes_for_history((const int16_t*)hist_stack, 0, HIST_NEED + 1);
+									char *last_hist_need = malloc(need_bytes);
+									if (read(fd_hist, last_hist_need, need_bytes) == -1)
+										goto brohisy;
+									close(fd_hist);
+									unlink(full_temp_hist_file_path);
+									fd_hist = open(full_hist_file_path, O_RDWR | O_CREAT, 0664);
+									if (fd_hist == -1)
+										goto brohisy;
+									write(fd_hist, (const char*)last_hist_need, need_bytes);
+									free(last_hist_need);
+								}
+							}
 						}
 					}
 					goto ccmd;
@@ -432,10 +466,8 @@ go:	for (rbi = rbi_max ^= rbi_max; (read_return = read(0, buf, bufs_size));) {
 		if (S == 'S')
 			break;
 	}
-//	unlink(hist_file);
 	free_copa(first);
 	write(1, "\n", 1);
-	tcsetattr(0, TCSADRAIN, &termios_old_p);
-	//Restore old line desciple settings
+	tcsetattr(0, TCSADRAIN, &termios_old_p); 	/* Restore old line desciple settings */
 	return 0;
 }
