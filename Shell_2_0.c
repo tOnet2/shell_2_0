@@ -39,6 +39,7 @@ static const char hist_file[h_f_size] = "history";		/* CAN CHANGE FILE NAME IF Y
 static const char temp_hist_file[t_h_f_size] = ".temp_history";	/* CAN CHANGE FILE NAME IF YOU WISH 	*/
 static const char local_dir[l_d_size] = "Shell_2_0";		/* CAN CHANGE DIR NAME IF YOU WISH 	*/
 static const char hist_stack_file[h_f_size + 1] = ".history";	/* CAN CHANGE FILE NAME IF YOU WISH 	*/
+static const char broken_history_system[] = "Broken history system.\n";
 
 char conveyor_part[part_size_five + 1] = "\" | \"";		/* DONT MOVE THEM */
 char train_part[part_size_five + 1] = "\" ; \"";		/* DONT MOVE THEM */
@@ -82,9 +83,9 @@ int main (int argc, char **argv)
 	}
 	int32_t read_return, rbi, rbi_max, pbi, bi, S, hsi;
 	int32_t copa_last_comp_value;
-	int32_t shield_trigger, quote_trigger, input_error_trigger, bracket_trigger;
+	int32_t shield_trigger, quote_trigger, input_error_trigger, bracket_trigger, correct_old_history;
 	int32_t for_umask = 0002;
-	int32_t hist_file_exists, temp_hist_file_exists, hist_stack_file_exists, fd_hist, fd_stack;
+	int32_t hist_file_exists, temp_hist_file_exists, hist_stack_file_exists, fd_hist;
 	const char *full_hist_dir_path = create_hist_dir_path(local_dir);
 	const char *full_hist_file_path = create_full_hist_path(full_hist_dir_path, hist_file);
 	const char *full_temp_hist_file_path = create_full_hist_path(full_hist_dir_path, temp_hist_file);
@@ -92,11 +93,59 @@ int main (int argc, char **argv)
 	umask(for_umask);
 	hist_file_exists = create_history_file(full_hist_dir_path, full_hist_file_path);
 	temp_hist_file_exists = create_history_file(full_hist_dir_path, full_temp_hist_file_path);
-	unlink(full_temp_hist_file_path);
 	hist_stack_file_exists = create_history_file(full_hist_dir_path, full_hist_stack_path);
+	unlink(full_temp_hist_file_path);
 	copa *first, *last;
 	first = last = NULL;
-	fd_hist = fd_stack = hsi = bracket_trigger = copa_last_comp_value = input_error_trigger = shield_trigger = quote_trigger ^= quote_trigger;
+	correct_old_history = fd_hist = hsi = bracket_trigger = copa_last_comp_value = input_error_trigger = shield_trigger = quote_trigger ^= quote_trigger;
+	if (hist_file_exists == 1 && temp_hist_file_exists == 1 && hist_stack_file_exists == 1) {
+		fd_hist = open(full_hist_stack_path, O_RDONLY);
+		if (fd_hist == -1)
+			hist_stack_file_exists = 0;
+		else {
+			int32_t readed;
+			readed = read(fd_hist, hist_stack, h_s_size * 2);
+			if (readed > 1 && readed % 2 == 0) {
+				hsi = readed / 2;
+				close(fd_hist);
+				fd_hist = open(full_hist_file_path, O_RDWR);
+				if (fd_hist == -1) {
+					hist_file_exists = 0;
+				} else {
+					int32_t f_lseek = 0;
+					for (int32_t i = 0; i < hsi && hist_stack[i]; i++)
+						f_lseek += hist_stack[i] + 1;
+					lseek(fd_hist, f_lseek, SEEK_SET);
+					int32_t for_check = hist_stack[hsi - 1];
+					char check[for_check + 2];
+					if (hsi > 1) {
+						for_check += 2;
+						lseek(fd_hist, -for_check, SEEK_CUR);
+						read(fd_hist, check, for_check);
+						if (check[0] == '\n' && check[for_check - 1] == '\n')
+							correct_old_history = 1;
+					} else if (hsi == 1) {
+						for_check += 1;
+						lseek(fd_hist, -for_check, SEEK_CUR);
+						read(fd_hist, check, for_check);
+						if (check[for_check - 1] == '\n')
+							correct_old_history = 1;
+					}
+					if (!correct_old_history) {
+						reset_history((const char*)full_hist_file_path, (const char*)full_hist_stack_path,\
+							(const char*)full_temp_hist_file_path, &fd_hist, &hist_file_exists,\
+							&hist_stack_file_exists, &temp_hist_file_exists);
+						write(2, broken_history_system, sizeof(broken_history_system));
+					}
+				}
+			} else if (readed == 0) {
+				correct_old_history = 1;
+				close(fd_hist);
+				fd_hist ^= fd_hist;
+			} else
+				close(fd_hist);
+		}
+	}
 	write(1, w8, w8_size);
 /*
  * 0x8  = '\b'	(Backspace)
@@ -312,7 +361,7 @@ go:	for (rbi = rbi_max ^= rbi_max; (read_return = read(0, buf, bufs_size));) {
 				case 0xa:
 					write(1, "\n", 1);
 					read_buf[rbi_max] = '\0';
-					if (hist_file_exists == 1 && hist_stack_file_exists == 1 && temp_hist_file_exists == 1) {
+					if (correct_old_history == 1 && hist_file_exists == 1 && hist_stack_file_exists == 1 && temp_hist_file_exists == 1) {
 						if (fd_hist == 0) {
 							fd_hist = open(full_hist_file_path, O_RDWR);
 							if (fd_hist == -1) {
@@ -325,14 +374,12 @@ go:	for (rbi = rbi_max ^= rbi_max; (read_return = read(0, buf, bufs_size));) {
 brohisy:							reset_history((const char*)full_hist_file_path, (const char*)full_hist_stack_path,\
 									(const char*)full_temp_hist_file_path, &fd_hist, &hist_file_exists,\
 									&hist_stack_file_exists, &temp_hist_file_exists);
-								perror("Broken history system");
+								write(2, broken_history_system, sizeof(broken_history_system));
 								goto ccmd;
 							} else {
-								if (hsi < h_s_size) {
+								if (hsi < h_s_size)
 									hist_stack[hsi++] = rbi_max;
-									for (int i = 0; i < h_s_size; i++)
-										printf("////////// %d\n", hist_stack[i]);
-								} else {
+								else {
 									int32_t superflous_bytes = stack_bytes_for_history((const int16_t*)hist_stack, 0, REMOVE_HIST);
 									full_history_stack(hist_stack, REMOVE_HIST, h_s_size);
 									hsi = HIST_NEED;
@@ -463,8 +510,28 @@ brohisy:							reset_history((const char*)full_hist_file_path, (const char*)full
 			}
 		}
 		clear_buf(buf);
-		if (S == 'S')
+		if (S == 'S') {
+			if (hsi > 0 && correct_old_history == 1 && hist_file_exists == 1 && temp_hist_file_exists == 1 && hist_stack_file_exists == 1) {
+				if (access(full_hist_stack_path, F_OK) == 0)
+					unlink(full_hist_stack_path);
+				close(fd_hist);
+				fd_hist = open(full_hist_stack_path, O_WRONLY | O_CREAT | O_APPEND, 0664);
+				if (fd_hist == -1) {
+					unlink(full_hist_file_path);
+					perror("Can't save history normally.");
+					break;
+				}
+				if (write(fd_hist, (const int16_t*)hist_stack, hsi * 2) == -1) {
+					unlink(full_hist_file_path);
+					unlink(full_hist_stack_path);
+					close(fd_hist);
+					perror("Can't save history normally.");
+					break;
+				}
+				close(fd_hist);
+			}
 			break;
+		}
 	}
 	free_copa(first);
 	write(1, "\n", 1);
