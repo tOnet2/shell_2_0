@@ -81,9 +81,9 @@ int main (int argc, char **argv)
 		perror("Can't set termios new attributes");
 		exit(1);
 	}
-	int32_t read_return, rbi, rbi_max, pbi, bi, S, hsi;
+	int32_t read_return, rbi, rbi_max, pbi, bi, S, hsi, hsi_updown;
 	int32_t copa_last_comp_value;
-	int32_t shield_trigger, quote_trigger, input_error_trigger, bracket_trigger, correct_old_history;
+	int32_t shield_trigger, quote_trigger, input_error_trigger, bracket_trigger, correct_old_history, updown_trigger;
 	int32_t for_umask = 0002;
 	int32_t hist_file_exists, temp_hist_file_exists, hist_stack_file_exists, fd_hist;
 	const char *full_hist_dir_path = create_hist_dir_path(local_dir);
@@ -97,7 +97,8 @@ int main (int argc, char **argv)
 	unlink(full_temp_hist_file_path);
 	copa *first, *last;
 	first = last = NULL;
-	correct_old_history = fd_hist = hsi = bracket_trigger = copa_last_comp_value = input_error_trigger = shield_trigger = quote_trigger ^= quote_trigger;
+	updown_trigger = correct_old_history = fd_hist = hsi = hsi_updown = bracket_trigger\
+		= copa_last_comp_value = input_error_trigger = shield_trigger = quote_trigger ^= quote_trigger;
 	if (hist_file_exists == 1 && temp_hist_file_exists == 1 && hist_stack_file_exists == 1) {
 		fd_hist = open(full_hist_stack_path, O_RDONLY);
 		if (fd_hist == -1)
@@ -106,7 +107,7 @@ int main (int argc, char **argv)
 			int32_t readed;
 			readed = read(fd_hist, hist_stack, h_s_size * 2);
 			if (readed > 1 && readed % 2 == 0) {
-				hsi = readed / 2;
+				hsi_updown = hsi = readed / 2;
 				close(fd_hist);
 				fd_hist = open(full_hist_file_path, O_RDWR);
 				if (fd_hist == -1) {
@@ -164,8 +165,8 @@ int main (int argc, char **argv)
  * 0x3e = '>'	(Redirect output)
  * 0x44 = 'D' 	(for <-)
  * 0x43 = 'C' 	(for ->)
- * 0x41 = 'A' 	(for ^)----------------------------
- * 0x42 = 'B' 	(for v)----------------------------
+ * 0x41 = 'A' 	(for ^)
+ * 0x42 = 'B' 	(for v)
  * 0x5c = '\'	(Shielding)
  * 0x7c = '|'	(Conveyor symbol)
  * 0x7f = DEL	(Delete character under cursor)
@@ -357,6 +358,8 @@ go:	for (rbi = rbi_max ^= rbi_max; (read_return = read(0, buf, bufs_size));) {
 			exit(1);
 		}
 		for (bi ^= bi; bi < bufs_size && buf[bi]; bi++) {
+			if (!updown_trigger && (buf[bi + 2] < 0x41 || buf[bi + 2] > 0x44) && buf[bi] != 0xa && hsi_updown == hsi)
+				updown_trigger = 1;
 			switch (buf[bi]) {
 				case 0xa:
 					write(1, "\n", 1);
@@ -370,6 +373,23 @@ go:	for (rbi = rbi_max ^= rbi_max; (read_return = read(0, buf, bufs_size));) {
 							}
 						}
 						if (rbi_max > 0) {
+							if (hsi_updown < hsi) {
+								int sum_lseek = 0;
+								for (; hsi_updown < hsi; hsi_updown++)
+									sum_lseek += hist_stack[hsi_updown] + 1;
+								lseek(fd_hist, sum_lseek, SEEK_CUR);
+							}
+							if (hsi > 0) {
+								lseek(fd_hist, -(hist_stack[hsi - 1] + 1), SEEK_CUR);
+								char check[hist_stack[hsi - 1] + 1];
+								read(fd_hist, check, hist_stack[hsi - 1]);
+								check[hist_stack[hsi - 1]] = 0;
+								lseek(fd_hist, 1, SEEK_CUR);
+								if (cmp_buf1withbuf2((const char*)read_buf, (const char*)check) == 1) {
+									hsi_updown = hsi;
+									goto ccmd;
+								}
+							}
 							if (write(fd_hist, (const char*)read_buf, rbi_max) == -1 || write(fd_hist, "\n", 1) == -1) {
 brohisy:							reset_history((const char*)full_hist_file_path, (const char*)full_hist_stack_path,\
 									(const char*)full_temp_hist_file_path, &fd_hist, &hist_file_exists,\
@@ -377,8 +397,10 @@ brohisy:							reset_history((const char*)full_hist_file_path, (const char*)full
 								write(2, broken_history_system, sizeof(broken_history_system));
 								goto ccmd;
 							} else {
-								if (hsi < h_s_size)
+								if (hsi < h_s_size) {
 									hist_stack[hsi++] = rbi_max;
+									hsi_updown = hsi;
+								}
 								else {
 									int32_t superflous_bytes = stack_bytes_for_history((const int16_t*)hist_stack, 0, REMOVE_HIST);
 									full_history_stack(hist_stack, REMOVE_HIST, h_s_size);
@@ -400,6 +422,7 @@ brohisy:							reset_history((const char*)full_hist_file_path, (const char*)full
 								}
 							}
 						}
+						clear_buf(temp_buf);
 					}
 					goto ccmd;
 				case 0x8: // backspace
@@ -464,8 +487,46 @@ brohisy:							reset_history((const char*)full_hist_file_path, (const char*)full
 							write(1, (const char*)&read_buf[rbi++], 1);
 							break;
 						} else if (lrud == 0x41) { // ^ up
+							if (hsi_updown > 0 && fd_hist > 0) {
+								if (updown_trigger && *read_buf) {
+									cp_buf1tobuf2((const char*)read_buf, temp_buf);
+									updown_trigger ^= updown_trigger;
+								}
+								for (int32_t i = 0; i < rbi_max; i++)
+									write(1, "\b \b", 3);
+								lseek(fd_hist, -(hist_stack[--hsi_updown] + 1), SEEK_CUR);
+								clear_buf(read_buf);
+								read(fd_hist, read_buf, hist_stack[hsi_updown]);
+								lseek(fd_hist, -(hist_stack[hsi_updown]), SEEK_CUR);
+								rbi = rbi_max = hist_stack[hsi_updown];
+								write(1, (const char*)read_buf, hist_stack[hsi_updown]);
+							}
 							break;
 						} else if (lrud == 0x42) { // V down
+							if (hsi_updown < hsi && fd_hist > 0) {
+								if (hsi_updown < hsi - 1) {
+									for (int32_t i = 0; i < rbi_max; i++)
+										write(1, "\b \b", 3);
+									lseek(fd_hist, hist_stack[hsi_updown++] + 1, SEEK_CUR);
+									clear_buf(read_buf);
+									read(fd_hist, read_buf, hist_stack[hsi_updown]);
+									lseek(fd_hist, -(hist_stack[hsi_updown]), SEEK_CUR);
+									rbi = rbi_max = hist_stack[hsi_updown];
+									write(1, (const char*)read_buf, hist_stack[hsi_updown]);
+								} else if (hsi_updown == hsi - 1) {
+									lseek(fd_hist, 0, SEEK_END);
+									hsi_updown = hsi;
+									for (int32_t i = 0; i < rbi_max; i++)
+										write(1, "\b \b", 3);
+									clear_buf(read_buf);
+									if (*temp_buf) {
+										cp_buf1tobuf2((const char*)temp_buf, read_buf);
+										rbi = rbi_max = size_buf((const char*)read_buf);
+										write(1, (const char*)read_buf, rbi_max);
+									} else
+										rbi = rbi_max ^= rbi_max;
+								}
+							}
 							break;
 						} else if (lrud == 0x33) {
 							bi++;

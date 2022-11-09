@@ -20,5 +20,7 @@ void middle_del_for_buf (char *buf, int32_t from, int32_t to);
 void middle_insert_for_buf (char *buf, int32_t from, int32_t to);
 void cp_buf1tobuf2 (const char *buf1, char *buf2);
 void clear_buf (char *buf);
+int32_t cmp_buf1withbuf2 (const char *buf1, const char *buf2);
+int32_t size_buf (const char *buf);
 
 #endif

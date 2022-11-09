@@ -174,3 +174,19 @@ void clear_buf (char *buf)
 	for (; *buf;)
 		*buf++ = 0;
 }
+
+int32_t cmp_buf1withbuf2 (const char *buf1, const char *buf2)
+{
+	for (; *buf1 && *buf2; buf1++, buf2++)
+		if (*buf1 != *buf2) return 0;
+	if (!*buf1 && !*buf2) return 1;
+	return 0;
+}
+
+int32_t size_buf (const char *buf)
+{
+	int32_t size = 0;
+	for (; *buf; buf++)
+		size++;
+	return size;
+}
