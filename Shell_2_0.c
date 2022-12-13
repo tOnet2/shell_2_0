@@ -1,12 +1,5 @@
-#include <stdint.h>
-#include "modules/headers/Shell_2_0.h"
-#include "modules/headers/mk_full_hist_file_path.h"
-#include "modules/headers/input_formatting.h"
-#include "modules/headers/process_control.h"
-#include "modules/headers/help_functions.h"
-#include "modules/headers/history_control.h"
+#include <inttypes.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -15,6 +8,14 @@
 #include <string.h>
 #include <termios.h>
 #include <fcntl.h>
+#include <stdlib.h>
+#include <signal.h>
+#include "modules/headers/Shell_2_0.h"
+#include "modules/headers/mk_full_hist_file_path.h"
+#include "modules/headers/input_formatting.h"
+#include "modules/headers/process_control.h"
+#include "modules/headers/help_functions.h"
+#include "modules/headers/history_control.h"
 
 #define REMOVE_HIST	5 		/* NUMBER THAT FOR REMOVE SUPERFLOUS OLD COMMANDS FROM HISTORY	*/
 #define HIST_NEED	10		/* NUMBER THAT FOR REMAINING COMMANDS FOR NEW HISTORY FILE 	*/
@@ -62,6 +63,7 @@ static int16_t hist_stack[h_s_size];
 
 int main (int argc, char **argv)
 {
+	signal(SIGTTOU, SIG_IGN);
 	struct termios termios_new_p, termios_old_p;
 	if (isatty(0)) {
 /*
@@ -81,6 +83,8 @@ int main (int argc, char **argv)
 		perror("Can't set termios new attributes");
 		exit(1);
 	}
+	int32_t main_pid = getpid();
+	int32_t main_pgid = getpgid(main_pid);
 	int32_t read_return, rbi, rbi_max, pbi, bi, S, hsi, hsi_updown;
 	int32_t copa_last_comp_value;
 	int32_t shield_trigger, quote_trigger, input_error_trigger, bracket_trigger, correct_old_history, updown_trigger;
@@ -158,9 +162,10 @@ int main (int argc, char **argv)
  * 0x22 = '"'	(Symbol for using spaces and tabs
  * 		 in part and other syms)
  * 0x17 = '^W'	(Delete last word)
- * 0x26 = '&'	(For background process)
  * 0x28 0x29 =	'(' ')
+ * 0x26 = '&'	(For background process)
  * 0x3b = ';'	(For traing of process)
+ * 0x7c = '|'	(Conveyor symbol)
  * 0x3c = '<'	(Redirect input)
  * 0x3e = '>'	(Redirect output)
  * 0x44 = 'D' 	(for <-)
@@ -168,7 +173,6 @@ int main (int argc, char **argv)
  * 0x41 = 'A' 	(for ^)
  * 0x42 = 'B' 	(for v)
  * 0x5c = '\'	(Shielding)
- * 0x7c = '|'	(Conveyor symbol)
  * 0x7f = DEL	(Delete character under cursor)
  */
 	goto go;
@@ -193,6 +197,16 @@ ccmd:	for (pbi = rbi ^= rbi; rbi < bufs_size; rbi++) {
 				write_copa(first);
 				write(1, "\n", 1);
 #endif
+				if (first) {
+					char **cmdline = copa_to_cmdline((const copa*)first);
+					int32_t ec_r = execute_cmdline(cmdline, &termios_old_p);
+					if (ec_r == -1) {
+						perror("Something wrong with executing the cmdline");
+						exit(1);
+					}
+					tcsetattr(0, TCSADRAIN, &termios_new_p);
+					free(cmdline);
+				}
 break_execute:			write(1, w8, sizeof(w8));
 				free_copa(first);
 				first = last = NULL;
